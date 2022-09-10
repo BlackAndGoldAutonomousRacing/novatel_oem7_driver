@@ -29,36 +29,38 @@ add_definitions("-D${PROJECT_NAME}_VERSION=\"${${PROJECT_NAME}_VERSION}\"")
 ## Build ##
 ###########
 
-
-
 # Log environment
 message(STATUS "System Host Proc: '${CMAKE_HOST_SYSTEM_PROCESSOR}'")
 message(STATUS "System Proc: '${CMAKE_SYSTEM_PROCESSOR}'")
 message(STATUS "VOID_P: ${CMAKE_SIZEOF_VOID_P}")
 
-
 set(OEM7_DECODER novatel_oem7_decoder)
-
-
 
 include(ExternalProject)
 ExternalProject_Add(${OEM7_DECODER}
-  GIT_REPOSITORY https://github.com/novatel/novatel_edie
-  GIT_TAG origin/dev-ros_install_prefix
-  PREFIX ${CMAKE_BINARY_DIR}/${OEM7_DECODER}
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR} -DVERSION=1.0.0.2
+  SOURCE_DIR ${PROJECT_SOURCE_DIR}/../${OEM7_DECODER}
+  BINARY_DIR ${PROJECT_BINARY_DIR}/${OEM7_DECODER}/
+  #GIT_REPOSITORY https://github.com/novatel/novatel_edie
+  #GIT_TAG origin/dev-ros_install_prefix
+  #PREFIX ${CMAKE_BINARY_DIR}/${OEM7_DECODER}
+  CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR} -DVERSION=1.0.0.2
 )
 
-
-set(OEM7_DECODER_DIR ${CMAKE_BINARY_DIR}/${OEM7_DECODER}/src/${OEM7_DECODER})
+#set(OEM7_DECODER_DIR ${CMAKE_BINARY_DIR}/${OEM7_DECODER}/src/${OEM7_DECODER})
+set(OEM7_DECODER_DIR ${PROJECT_SOURCE_DIR}/../${OEM7_DECODER})
+#set(OEM7_DECODER_BIN_DIR ${PROJECT_BINARY_DIR}/novatel_oem7_decoder/)
 
 include_directories(include
     src
     ${OEM7_DECODER_DIR}	
     ${OEM7_DECODER_DIR}/src
-    ${CMAKE_BINARY_DIR}/usr/include/novatel/edie           
+    ${CMAKE_BINARY_DIR}/usr/include/novatel/edie
     ${OEM7_DECODER_DIR}/bin/Novatel/api/
     ${OEM7_DECODER_DIR}/bin/StreamInterface/api/
+    #${OEM7_DECODER_BIN_DIR}/Novatel/api/
+    #${OEM7_DECODER_BIN_DIR}/StreamInterface/api/
+	#${OEM7_DECODER_DIR}/src/decoders/novatel/api
+	#${OEM7_DECODER_DIR}/src/hw_interface/stream_interface/api
 )
 
 ## All components are plugins
@@ -85,11 +87,10 @@ add_executable(${PROJECT_NAME}_exe
    src/oem7_message_util.cpp
    src/oem7_ros_messages.cpp
    src/message_handler.cpp
-) 
-
-
+)
 
 message("Linking to EDIE at: '${CMAKE_BINARY_DIR}'")
+# TODO: EDIE is not imported to the project tree, hence add_dependency does not guarantee build sequence. May cause link error.
 
 target_link_libraries(${PROJECT_NAME}
    Boost::boost

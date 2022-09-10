@@ -1,0 +1,4 @@
+[submodule "novatel_oem7_decoder"]
+	path = novatel_oem7_decoder
+	url = https://github.com/novatel/novatel_edie.git
+	branch = dev-ros_install_prefix
