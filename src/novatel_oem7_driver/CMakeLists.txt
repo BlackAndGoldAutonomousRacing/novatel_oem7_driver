@@ -35,20 +35,18 @@ message(STATUS "System Proc: '${CMAKE_SYSTEM_PROCESSOR}'")
 message(STATUS "VOID_P: ${CMAKE_SIZEOF_VOID_P}")
 
 set(OEM7_DECODER novatel_oem7_decoder)
+#set(OEM7_DECODER_DIR ${CMAKE_BINARY_DIR}/${OEM7_DECODER}/src/${OEM7_DECODER})
+set(OEM7_DECODER_DIR ${PROJECT_SOURCE_DIR}/../${OEM7_DECODER})
 
 include(ExternalProject)
 ExternalProject_Add(${OEM7_DECODER}
-  SOURCE_DIR ${PROJECT_SOURCE_DIR}/../${OEM7_DECODER}
+  SOURCE_DIR ${OEM7_DECODER_DIR}
   BINARY_DIR ${PROJECT_BINARY_DIR}/${OEM7_DECODER}/
   #GIT_REPOSITORY https://github.com/novatel/novatel_edie
   #GIT_TAG origin/dev-ros_install_prefix
   #PREFIX ${CMAKE_BINARY_DIR}/${OEM7_DECODER}
-  CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR} -DVERSION=1.0.0.2
+  CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR} #-DVERSION=1.0.0.2
 )
-
-#set(OEM7_DECODER_DIR ${CMAKE_BINARY_DIR}/${OEM7_DECODER}/src/${OEM7_DECODER})
-set(OEM7_DECODER_DIR ${PROJECT_SOURCE_DIR}/../${OEM7_DECODER})
-#set(OEM7_DECODER_BIN_DIR ${PROJECT_BINARY_DIR}/novatel_oem7_decoder/)
 
 include_directories(include
     src
@@ -57,10 +55,6 @@ include_directories(include
     ${CMAKE_BINARY_DIR}/usr/include/novatel/edie
     ${OEM7_DECODER_DIR}/bin/Novatel/api/
     ${OEM7_DECODER_DIR}/bin/StreamInterface/api/
-    #${OEM7_DECODER_BIN_DIR}/Novatel/api/
-    #${OEM7_DECODER_BIN_DIR}/StreamInterface/api/
-	#${OEM7_DECODER_DIR}/src/decoders/novatel/api
-	#${OEM7_DECODER_DIR}/src/hw_interface/stream_interface/api
 )
 
 ## All components are plugins
@@ -90,7 +84,6 @@ add_executable(${PROJECT_NAME}_exe
 )
 
 message("Linking to EDIE at: '${CMAKE_BINARY_DIR}'")
-# TODO: EDIE is not imported to the project tree, hence add_dependency does not guarantee build sequence. May cause link error.
 
 target_link_libraries(${PROJECT_NAME}
    Boost::boost
