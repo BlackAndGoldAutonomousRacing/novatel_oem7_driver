@@ -170,7 +170,7 @@ namespace novatel_oem7_driver
       msg_handler_.reset(new MessageHandler(*this));
 
       // Oem7 raw messages to publish.
-      declare_parameter<std::vector<int>>("oem7_raw_msgs");
+      declare_parameter<std::vector<long>>("oem7_raw_msgs");
       rclcpp::Parameter oem7_raw_msgs_param = get_parameter("oem7_raw_msgs");
 
       std::vector<long> raw_msg = oem7_raw_msgs_param.as_integer_array();
