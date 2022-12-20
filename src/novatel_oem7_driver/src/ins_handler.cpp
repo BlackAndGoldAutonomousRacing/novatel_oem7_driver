@@ -93,7 +93,8 @@ namespace novatel_oem7_driver
     std::vector<std::vector<double>> static_meas_{};
     double bias_raw_imu_rot_[3] = {0.0, 0.0, 0.0};
     double bias_raw_imu_acc_[3] = {0.0, 0.0, 0.0};
-    bool init_raw_calibration_ = DriverParameter<bool>("ins_raw_static_init_calib", false, *node_).value();
+    bool init_raw_calibration_lin_ = DriverParameter<bool>("ins_raw_static_init_linear_calib", false, *node_).value();
+    bool init_raw_calibration_ang_ = DriverParameter<bool>("ins_raw_static_init_angular_calib", false, *node_).value();
 
     std::string frame_id_;
 
@@ -152,13 +153,18 @@ namespace novatel_oem7_driver
             }
         );
         std::for_each(avg.begin(), avg.end(), [](double &v){ v /= static_cast<double>(calib_len); });
-        bias_raw_imu_acc_[0] = avg[0];
-        bias_raw_imu_acc_[1] = avg[1];
-        bias_raw_imu_acc_[2] = avg[2];
-        bias_raw_imu_rot_[0] = avg[3];
-        bias_raw_imu_rot_[1] = avg[4];
-        bias_raw_imu_rot_[5] = avg[5];
-        init_raw_calibration_ = false;
+        if (init_raw_calibration_lin_){
+          bias_raw_imu_acc_[0] = avg[0];
+          bias_raw_imu_acc_[1] = avg[1];
+          bias_raw_imu_acc_[2] = avg[2] - 9.80665 * imu_linear_scale_;
+          init_raw_calibration_lin_ = false;
+        }
+        if (init_raw_calibration_ang_){
+          bias_raw_imu_rot_[0] = avg[3];
+          bias_raw_imu_rot_[1] = avg[4];
+          bias_raw_imu_rot_[5] = avg[5];
+          init_raw_calibration_ang_ = false;
+        }
       }
     }
 
@@ -267,7 +273,7 @@ namespace novatel_oem7_driver
     {
       const RAWIMUSXMem* raw;
       
-      if (init_raw_calibration_) {
+      if (init_raw_calibration_lin_ || init_raw_calibration_ang_) {
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
         do_init_raw_calibration(*raw);
         if (!raw_imu_pub_->isEnabled())
