@@ -90,6 +90,11 @@ namespace novatel_oem7_driver
     int imu_rate_ = 0;
     double imu_linear_scale_ = 1.0;
     double imu_angular_scale_ = 1.0;
+    std::vector<std::vector<double>> static_meas_{};
+    double bias_raw_imu_rot_[3] = {0.0, 0.0, 0.0};
+    double bias_raw_imu_acc_[3] = {0.0, 0.0, 0.0};
+    bool init_raw_calibration_ = DriverParameter<bool>("ins_raw_static_init_calib", false, *node_).value();
+
     std::string frame_id_;
 
     typedef std::map<std::string, std::string> imu_config_map_t;
@@ -120,6 +125,41 @@ namespace novatel_oem7_driver
     {
       static DriverParameter<std::string> desc_p("supported_imus." + std::to_string(imu_type) + ".name", "", *node_);
       desc = desc_p.value();
+    }
+
+    void do_init_raw_calibration(const RAWIMUSXMem& raw)
+    {
+      const unsigned int calib_len = 200;
+      if (static_meas_.size() < calib_len){
+        static_meas_.push_back(std::vector<double>{
+          static_cast<double>(raw.x_acc),
+          static_cast<double>(raw.y_acc),
+          static_cast<double>(raw.z_acc),
+          static_cast<double>(raw.x_gyro),
+          static_cast<double>(raw.y_gyro),
+          static_cast<double>(raw.z_gyro),
+        });
+      } else {
+        std::vector<double> avg = std::reduce(static_meas_.begin(), static_meas_.end(),
+            std::vector<double>{0.,0.,0.,0.,0.,0.},
+            // define the vector add function
+            [](std::vector<double> &x, std::vector<double> &y){
+              std::vector<double> result;
+              result.reserve(x.size());
+              std::transform(x.begin(), x.end(), y.begin(), 
+                   std::back_inserter(result), std::plus<double>());
+              return result;
+            }
+        );
+        std::for_each(avg.begin(), avg.end(), [](double &v){ v /= static_cast<double>(calib_len); });
+        bias_raw_imu_acc_[0] = avg[0];
+        bias_raw_imu_acc_[1] = avg[1];
+        bias_raw_imu_acc_[2] = avg[2];
+        bias_raw_imu_rot_[0] = avg[3];
+        bias_raw_imu_rot_[1] = avg[4];
+        bias_raw_imu_rot_[5] = avg[5];
+        init_raw_calibration_ = false;
+      }
     }
 
 
@@ -225,17 +265,23 @@ namespace novatel_oem7_driver
 
     void processRawImuMsg(Oem7RawMessageIf::ConstPtr msg)
     {
-      if(!raw_imu_pub_->isEnabled())
-      {
+      const RAWIMUSXMem* raw;
+      
+      if (init_raw_calibration_) {
+        raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
+        do_init_raw_calibration(*raw);
+        if (!raw_imu_pub_->isEnabled())
+          return;
+      } else if (!raw_imu_pub_->isEnabled()) {
         return;
+      } else {
+        raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
       }
-
-      const RAWIMUSXMem* raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
-
+        
       std::shared_ptr<sensor_msgs::msg::Imu> imu = std::make_shared<sensor_msgs::msg::Imu>();
-      imu->angular_velocity.x = raw->x_gyro / imu_angular_scale_;
-      imu->angular_velocity.y = raw->y_gyro / imu_angular_scale_;
-      imu->angular_velocity.z = raw->z_gyro / imu_angular_scale_;
+      imu->angular_velocity.x = (raw->x_gyro - bias_raw_imu_rot_[0]) / imu_angular_scale_;
+      imu->angular_velocity.y = (raw->y_gyro - bias_raw_imu_rot_[1]) / imu_angular_scale_;
+      imu->angular_velocity.z = (raw->z_gyro - bias_raw_imu_rot_[2]) / imu_angular_scale_;
 
       imu->linear_acceleration.x = raw->x_acc / imu_linear_scale_;
       imu->linear_acceleration.y = raw->y_acc / imu_linear_scale_;
@@ -295,36 +341,30 @@ namespace novatel_oem7_driver
 
     void handleMsg(Oem7RawMessageIf::ConstPtr msg)
     {
-      if(msg->getMessageId()== INSPVAS_OEM7_MSGID)
-      {
-        MakeROSMessage(msg, inspva_); // Cache
-      }
-      else if(msg->getMessageId() == INSSTDEV_OEM7_MSGID)
-      {
-        publishInsStDevMsg(msg);
-      }
-      else if(msg->getMessageId() == CORRIMUS_OEM7_MSGID ||
-              msg->getMessageId() == IMURATECORRIMUS_OEM7_MSGID)
-      {
-        publishCorrImuMsg(msg);
-
-        publishImuMsg();
-      }
-      else if(msg->getMessageId() == INSCONFIG_OEM7_MSGID)
-      {
-        processInsConfigMsg(msg);
-      }
-      else if(msg->getMessageId() == INSPVAX_OEM7_MSGID)
-      {
-        publishInsPVAXMsg(msg);
-      }
-      else if(msg->getMessageId() == RAWIMUSX_OEM7_MSGID)
-      {
-        processRawImuMsg(msg);
-      }
-      else
-      {
-        assert(false);
+      switch(msg->getMessageId()){
+        case INSPVAS_OEM7_MSGID:
+          MakeROSMessage(msg, inspva_); // Cache
+          break;
+        case INSSTDEV_OEM7_MSGID:
+          publishInsStDevMsg(msg);
+          break;
+        case CORRIMUS_OEM7_MSGID:
+        case IMURATECORRIMUS_OEM7_MSGID:
+          publishCorrImuMsg(msg);
+          publishImuMsg();
+          break;
+        case INSCONFIG_OEM7_MSGID:
+          processInsConfigMsg(msg);
+          break;
+        case INSPVAX_OEM7_MSGID:
+          publishInsPVAXMsg(msg);
+          break;
+        case RAWIMUSX_OEM7_MSGID:
+          processRawImuMsg(msg);
+          break;
+        default:
+          assert(false);
+          break;
       }
     }
   };

@@ -3,7 +3,7 @@ project(novatel_oem7_driver)
 
 
 ## Compile as C++14, supported on ROS2
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 find_package(ament_cmake REQUIRED)
 
