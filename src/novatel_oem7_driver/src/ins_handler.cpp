@@ -87,7 +87,9 @@ namespace novatel_oem7_driver
     std::shared_ptr<novatel_oem7_msgs::msg::CORRIMU>  corrimu_;
     std::shared_ptr<novatel_oem7_msgs::msg::INSSTDEV> insstdev_;
 
-    int imu_rate_;
+    int imu_rate_ = 0;
+    double imu_linear_scale_ = 1.0;
+    double imu_angular_scale_ = 1.0;
     std::string frame_id_;
 
     typedef std::map<std::string, std::string> imu_config_map_t;
@@ -100,6 +102,18 @@ namespace novatel_oem7_driver
     {
       static DriverParameter<int> rate_p("supported_imus." + std::to_string(imu_type) + ".rate", 0, *node_);
       return rate_p.value();
+    }
+
+    double getImuLinearScale(imu_type_t imu_type)
+    {
+      static DriverParameter<double> scale_p("supported_imus." + std::to_string(imu_type) + ".linear_scale", 1.0, *node_);
+      return scale_p.value();
+    }
+
+    double getImuAngularScale(imu_type_t imu_type)
+    {
+      static DriverParameter<double> scale_p("supported_imus." + std::to_string(imu_type) + ".angular_scale", 1.0, *node_);
+      return scale_p.value();
     }
 
     void getImuDescription(imu_type_t imu_type, std::string& desc)
@@ -121,6 +135,8 @@ namespace novatel_oem7_driver
         getImuDescription(insconfig->imu_type, imu_desc);
 
         imu_rate_ = getImuRate(insconfig->imu_type);
+        imu_linear_scale_ = getImuLinearScale(insconfig->imu_type);
+        imu_angular_scale_ = getImuAngularScale(insconfig->imu_type);
 
         RCLCPP_INFO_STREAM(node_->get_logger(),  "IMU[" << insconfig->imu_type << "]: '" << imu_desc << "', rate= " << imu_rate_);
       }
@@ -217,13 +233,13 @@ namespace novatel_oem7_driver
       const RAWIMUSXMem* raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
 
       std::shared_ptr<sensor_msgs::msg::Imu> imu = std::make_shared<sensor_msgs::msg::Imu>();
-      imu->angular_velocity.x = -raw->y_gyro;
-      imu->angular_velocity.y = -raw->x_gyro;
-      imu->angular_velocity.z =  raw->z_gyro;
+      imu->angular_velocity.x = raw->x_gyro / imu_angular_scale_;
+      imu->angular_velocity.y = raw->y_gyro / imu_angular_scale_;
+      imu->angular_velocity.z = raw->z_gyro / imu_angular_scale_;
 
-      imu->linear_acceleration.x = -raw->y_acc;
-      imu->linear_acceleration.y = -raw->x_acc;
-      imu->linear_acceleration.z =  raw->z_acc;
+      imu->linear_acceleration.x = raw->x_acc / imu_linear_scale_;
+      imu->linear_acceleration.y = raw->y_acc / imu_linear_scale_;
+      imu->linear_acceleration.z = raw->z_acc / imu_linear_scale_;
 
       imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
       imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
