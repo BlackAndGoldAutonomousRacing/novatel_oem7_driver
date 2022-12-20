@@ -245,6 +245,7 @@ namespace novatel_oem7_driver
     std::unique_ptr<Oem7RosPublisher<BESTPOS>> BESTPOS_pub_;
     std::unique_ptr<Oem7RosPublisher<BESTVEL>> BESTVEL_pub_;
     std::unique_ptr<Oem7RosPublisher<BESTUTM>> BESTUTM_pub_;
+    std::unique_ptr<Oem7RosPublisher<BESTPOS>> BESTGNSSPOS_pub_;
     std::unique_ptr<Oem7RosPublisher<INSPVA>> INSPVA_pub_;
 
     std::unique_ptr<Oem7RosPublisher<GPSFix>>    GPSFix_pub_;
@@ -253,6 +254,7 @@ namespace novatel_oem7_driver
 
     std::shared_ptr<BESTPOS> bestpos_;
     std::shared_ptr<BESTVEL> bestvel_;
+    std::shared_ptr<BESTPOS> bestgnsspos_;
     std::shared_ptr<INSPVA>  inspva_;
     std::shared_ptr<INSPVAX> inspvax_;
 
@@ -262,10 +264,12 @@ namespace novatel_oem7_driver
 
     int64_t last_bestpos_;
     int64_t last_bestvel_;
+    int64_t last_bestgnsspos_;
     int64_t last_inspva_;
 
     int32_t bestpos_period_;
     int32_t bestvel_period_;
+    int32_t bestgnsspos_period_;
     int32_t inspva_period_;
 
     std::string base_frame_; ///< Base frame for Odometry
@@ -283,6 +287,7 @@ namespace novatel_oem7_driver
     {
       return period <= bestpos_period_ &&
              period <= bestvel_period_ &&
+             period <= bestgnsspos_period_ &&
              period <= inspva_period_;
     }
 
@@ -320,6 +325,14 @@ namespace novatel_oem7_driver
 
 
       BESTPOS_pub_->publish(bestpos_);
+    }
+
+    void publishBESTGNSSPOS(Oem7RawMessageIf::ConstPtr msg)
+    {
+      MakeROSMessage(msg, bestgnsspos_);
+      updatePeriod(bestgnsspos_, last_bestgnsspos_, bestgnsspos_period_);
+
+      BESTGNSSPOS_pub_->publish(bestgnsspos_);
     }
 
     void publishBESTVEL(Oem7RawMessageIf::ConstPtr msg)
@@ -777,6 +790,7 @@ namespace novatel_oem7_driver
       last_inspva_(0),
       bestpos_period_(std::numeric_limits<int32_t>::max()),
       bestvel_period_(std::numeric_limits<int32_t>::max()),
+      bestgnsspos_period_(std::numeric_limits<int32_t>::max()),
       inspva_period_( std::numeric_limits<int32_t>::max()),
       position_source_BESTPOS_(false),
       position_source_INS_(false)
@@ -795,6 +809,7 @@ namespace novatel_oem7_driver
       BESTPOS_pub_ = std::make_unique<Oem7RosPublisher<BESTPOS>>( "BESTPOS",       node);
       BESTVEL_pub_ = std::make_unique<Oem7RosPublisher<BESTVEL>>( "BESTVEL",       node);
       BESTUTM_pub_ = std::make_unique<Oem7RosPublisher<BESTUTM>>( "BESTUTM",       node);
+      BESTGNSSPOS_pub_ = std::make_unique<Oem7RosPublisher<BESTPOS>>( "BESTGNSSPOS", node);
       INSPVA_pub_  = std::make_unique<Oem7RosPublisher<INSPVA>>(  "INSPVA",        node);
 
       GPSFix_pub_    = std::make_unique<Oem7RosPublisher<GPSFix>>(   "GPSFix",       node);
@@ -832,7 +847,8 @@ namespace novatel_oem7_driver
                                       BESTUTM_OEM7_MSGID,
                                       INSPVAS_OEM7_MSGID,
                                       INSPVAX_OEM7_MSGID,
-                                      PSRDOP2_OEM7_MSGID
+                                      PSRDOP2_OEM7_MSGID,
+                                      BESTGNSSPOS_OEM7_MSGID,
                                     });
       return MSG_IDS;
     }
@@ -840,9 +856,10 @@ namespace novatel_oem7_driver
     void handleMsg(Oem7RawMessageIf::ConstPtr msg)
     {
       RCLCPP_DEBUG_STREAM(node_->get_logger(),
-                        "BESTPOS < [id=" << msg->getMessageId() << "] periods (BP BV PVA):" <<
+                        "BESTPOS < [id=" << msg->getMessageId() << "] periods (BP BV BGP PVA):" <<
                         bestpos_period_ << " " <<
                         bestvel_period_ << " " <<
+                        bestgnsspos_period_ << " " <<
                         inspva_period_);
 
       // It is assumed all the messages are logged at reasonable rates.
@@ -873,6 +890,16 @@ namespace novatel_oem7_driver
       if(msg->getMessageId() == BESTUTM_OEM7_MSGID)
       {
         publishBESTUTM(msg);
+      }
+
+      if(msg->getMessageId() == BESTGNSSPOS_OEM7_MSGID)
+      {
+        publishBESTGNSSPOS(msg);
+
+        if(isShortestPeriod(bestgnsspos_period_))
+        {
+          publishROSMessages();
+        }
       }
 
       if(msg->getMessageId() == INSPVAS_OEM7_MSGID)
