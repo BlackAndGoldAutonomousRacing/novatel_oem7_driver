@@ -97,8 +97,8 @@ namespace novatel_oem7_driver
     std::vector<std::vector<double>> static_meas_{};
     double bias_raw_imu_rot_[3] = {0.0, 0.0, 0.0};
     double bias_raw_imu_acc_[3] = {0.0, 0.0, 0.0};
-    bool init_raw_calibration_lin_ = DriverParameter<bool>("ins_raw_static_init_linear_calib", false, *node_).value();
-    bool init_raw_calibration_ang_ = DriverParameter<bool>("ins_raw_static_init_angular_calib", false, *node_).value();
+    bool init_raw_calibration_lin_;
+    bool init_raw_calibration_ang_;
 
     std::string frame_id_;
 
@@ -331,6 +331,9 @@ namespace novatel_oem7_driver
       {
         RCLCPP_INFO_STREAM(node_->get_logger(), "INS: IMU rate overriden to " << imu_rate_);
       }
+
+      init_raw_calibration_lin_ = node_->declare_parameter<bool>("ins_raw_static_init_linear_calib", false);
+      init_raw_calibration_ang_ = node_->declare_parameter<bool>("ins_raw_static_init_angular_calib", false);
     }
 
     const std::vector<int>& getMessageIds()
