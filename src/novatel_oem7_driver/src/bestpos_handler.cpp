@@ -45,8 +45,11 @@
 #include "sensor_msgs/msg/nav_sat_status.hpp"
 #include "geometry_msgs/msg/point.hpp"
 
-
+#if __has_include("tf2_geometry_msgs/tf2_geometry_msgs.hpp")
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#else
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#endif
 #include <gps_tools/conversions.h>
 
 #include <cmath>
