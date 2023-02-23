@@ -78,9 +78,8 @@ namespace novatel_oem7_driver
     Oem7RosPublisher<novatel_oem7_msgs::msg::Oem7RawMsg> oem7rawmsg_pub_; ///< Publishes raw Oem7 messages.
     bool publish_unknown_oem7raw_; ///< Publish all unknown messages to 'Oem7Raw'
 
-
-    rclcpp::CallbackGroup::CallbackGroup::SharedPtr msg_service_cb_grp_; ///< Message service callbacks
-    rclcpp::CallbackGroup::CallbackGroup::SharedPtr cmd_service_cb_grp_; ///< Command service callbacks
+    rclcpp::CallbackGroup::SharedPtr msg_service_cb_grp_; ///< Message service callbacks
+    rclcpp::CallbackGroup::SharedPtr cmd_service_cb_grp_; ///< Command service callbacks
 
     rclcpp::Service<novatel_oem7_msgs::srv::Oem7AbasciiCmd>::SharedPtr oem7_abascii_cmd_srv_;
 
@@ -155,13 +154,13 @@ namespace novatel_oem7_driver
       // Load plugins
 
       // Load Oem7Receiver
-      declare_parameter<std::string>("oem7_if");
+      declare_parameter("oem7_if", "");
       rclcpp::Parameter oem7_if_param = get_parameter("oem7_if");
       recvr_ = recvr_loader_.createSharedInstance(oem7_if_param.as_string());
       recvr_->initialize(*this);
 
       // Load Oem7 Message Decoder
-      declare_parameter<std::string>("oem7_msg_decoder");
+      declare_parameter("oem7_msg_decoder", "");
       rclcpp::Parameter msg_decoder_param = get_parameter("oem7_msg_decoder");
       msg_decoder = oem7_msg_decoder_loader.createSharedInstance(msg_decoder_param.as_string());
       msg_decoder->initialize(*this, recvr_.get(), this);
@@ -170,7 +169,8 @@ namespace novatel_oem7_driver
       msg_handler_.reset(new MessageHandler(*this));
 
       // Oem7 raw messages to publish.
-      declare_parameter<std::vector<long>>("oem7_raw_msgs");
+      std::vector<long> init_msg = {0, 0};
+      declare_parameter("oem7_raw_msgs", init_msg);
       rclcpp::Parameter oem7_raw_msgs_param = get_parameter("oem7_raw_msgs");
 
       std::vector<long> raw_msg = oem7_raw_msgs_param.as_integer_array();
@@ -561,7 +561,8 @@ int main(int argc, char* argv[])
   auto oem7 = std::make_shared<novatel_oem7_driver::Oem7MessageNode>(options);
 
   static const size_t THREAD_NUM = 2; // Receive and blocking command service.
-  rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), THREAD_NUM);
+  rclcpp::ExecutorOptions defaultOptions;
+  rclcpp::executors::MultiThreadedExecutor executor(defaultOptions, THREAD_NUM);
   executor.add_node(oem7);
   executor.spin();
   rclcpp::shutdown();
