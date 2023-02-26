@@ -226,7 +226,7 @@ namespace novatel_oem7_driver
   /**
    * Get Geometry (UTM) point from GNSS position, assuming zero origin.
    */
-  void UTMPointFromGnss(
+  std::string UTMPointFromGnss(
           geometry_msgs::msg::Point& pt,
           double lat,
           double lon,
@@ -236,6 +236,8 @@ namespace novatel_oem7_driver
 
     std::string zone; //unused
     gps_tools::LLtoUTM(lat, lon, pt.y, pt.x, zone);
+
+    return zone;
   }
 
   /***
@@ -594,10 +596,11 @@ namespace novatel_oem7_driver
     {
       std::shared_ptr<Odometry> odometry(new Odometry);
       odometry->child_frame_id = base_frame_;
+      static double gamma = 0.;
 
       if(gpsfix_)
       {
-        UTMPointFromGnss(
+        std::string zone = UTMPointFromGnss(
             odometry->pose.pose.position,
             gpsfix_->latitude,
             gpsfix_->longitude,
@@ -606,6 +609,19 @@ namespace novatel_oem7_driver
         odometry->pose.covariance[ 0] = gpsfix_->position_covariance[0];
         odometry->pose.covariance[ 7] = gpsfix_->position_covariance[4];
         odometry->pose.covariance[14] = gpsfix_->position_covariance[8];
+
+        // calculate meridian convergence
+        const double RADIANS_PER_DEGREE = M_PI/180.0;
+        double LongTemp = (gpsfix_->longitude + 180) - \
+          static_cast<int>((gpsfix_->longitude + 180) / 360) * 360 - 180;
+        double LatRad = gpsfix_->latitude * RADIANS_PER_DEGREE;
+        double LongRad = LongTemp * RADIANS_PER_DEGREE;
+        int ZoneNumber;
+        char ZoneIdent[2];
+        std::sscanf(zone.c_str(), "%d%c", &ZoneNumber, &(ZoneIdent[0]));
+        double LongOrigin = (ZoneNumber - 1) * 6 - 180 + 3;
+        double LongOriginRad = LongOrigin * RADIANS_PER_DEGREE;
+        gamma = atan(tan(LongRad - LongOriginRad) * sin(LatRad));
       }
 
       if(inspva_)
@@ -614,10 +630,11 @@ namespace novatel_oem7_driver
         // ROS uses x-forward orientation.
 
         tf2::Quaternion oem7_enu_orientation;
+        // Meridian convergence needs to be added since we are in utm frame for odometry
         oem7_enu_orientation.setRPY(
                               degreesToRadians(inspva_->roll),
                              -degreesToRadians(inspva_->pitch),
-                             -degreesToRadians(inspva_->azimuth));
+                             -degreesToRadians(inspva_->azimuth) + gamma);
 
         tf2::Quaternion ros_orientation = Z90_DEG_ROTATION * oem7_enu_orientation;
 
