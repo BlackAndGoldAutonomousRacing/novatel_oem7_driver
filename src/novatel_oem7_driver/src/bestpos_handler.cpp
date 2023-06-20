@@ -50,7 +50,7 @@
 #else
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #endif
-#include <gps_tools/conversions.h>
+#include "GeographicLib/UTMUPS.hpp"
 
 #include <cmath>
 #include <stdint.h>
@@ -79,7 +79,7 @@ namespace novatel_oem7_driver
    */
   inline double radiansToDegrees(double radians)
   {
-    return radians * 180.0 / M_PI;
+    return radians * 180.0 / M_PIf64;
   }
 
   /***
@@ -89,7 +89,7 @@ namespace novatel_oem7_driver
    */
   inline double degreesToRadians(double degrees)
   {
-    return degrees * M_PI / 180.0;
+    return degrees * M_PIf64 / 180.0;
   }
 
 
@@ -218,26 +218,6 @@ namespace novatel_oem7_driver
     }
 
     return service;
-  }
-
-
-
-
-  /**
-   * Get Geometry (UTM) point from GNSS position, assuming zero origin.
-   */
-  std::string UTMPointFromGnss(
-          geometry_msgs::msg::Point& pt,
-          double lat,
-          double lon,
-          double hgt)
-  {
-    pt.z = hgt;
-
-    std::string zone; //unused
-    gps_tools::LLtoUTM(lat, lon, pt.y, pt.x, zone);
-
-    return zone;
   }
 
   /***
@@ -589,7 +569,7 @@ namespace novatel_oem7_driver
       {
         RCLCPP_DEBUG_STREAM(node_->get_logger(), "No BESTPOS to produce NavSatFix 'service'.");
       }
-   }
+    }
 
 
     void publishOdometry()
@@ -600,28 +580,28 @@ namespace novatel_oem7_driver
 
       if(gpsfix_)
       {
-        std::string zone = UTMPointFromGnss(
-            odometry->pose.pose.position,
-            gpsfix_->latitude,
-            gpsfix_->longitude,
-            gpsfix_->altitude);
+        // Get Geometry (UTM) point from GNSS position, assuming zero origin.
+        int zone_tmp;
+        bool northp_tmp;
+        double scale;
+        GeographicLib::UTMUPS::Forward(
+          gpsfix_->latitude,
+          gpsfix_->longitude,
+          zone_tmp,
+          northp_tmp,
+          odometry->pose.pose.position.x,
+          odometry->pose.pose.position.y,
+          gamma,
+          scale);
+        if (Odometry_pub_->getFrameId() == "utm_scaled"){
+          odometry->pose.pose.position.x /= scale;
+          odometry->pose.pose.position.y /= scale;
+        }
+        odometry->pose.pose.position.z = gpsfix_->altitude;
 
         odometry->pose.covariance[ 0] = gpsfix_->position_covariance[0];
         odometry->pose.covariance[ 7] = gpsfix_->position_covariance[4];
         odometry->pose.covariance[14] = gpsfix_->position_covariance[8];
-
-        // calculate meridian convergence
-        const double RADIANS_PER_DEGREE = M_PI/180.0;
-        double LongTemp = (gpsfix_->longitude + 180) - \
-          static_cast<int>((gpsfix_->longitude + 180) / 360) * 360 - 180;
-        double LatRad = gpsfix_->latitude * RADIANS_PER_DEGREE;
-        double LongRad = LongTemp * RADIANS_PER_DEGREE;
-        int ZoneNumber;
-        char ZoneIdent[2];
-        std::sscanf(zone.c_str(), "%d%c", &ZoneNumber, &(ZoneIdent[0]));
-        double LongOrigin = (ZoneNumber - 1) * 6 - 180 + 3;
-        double LongOriginRad = LongOrigin * RADIANS_PER_DEGREE;
-        gamma = atan(tan(LongRad - LongOriginRad) * sin(LatRad));
       }
 
       if(inspva_)
@@ -633,8 +613,8 @@ namespace novatel_oem7_driver
         // Meridian convergence needs to be added since we are in utm frame for odometry
         oem7_enu_orientation.setRPY(
                               degreesToRadians(inspva_->roll),
-                             -degreesToRadians(inspva_->pitch),
-                             -degreesToRadians(inspva_->azimuth) + gamma);
+                              degreesToRadians(-inspva_->pitch),
+                              degreesToRadians(-inspva_->azimuth + gamma));
 
         tf2::Quaternion ros_orientation = Z90_DEG_ROTATION * oem7_enu_orientation;
 
@@ -642,7 +622,8 @@ namespace novatel_oem7_driver
 
         // Convert INSPVA ENU velocities to local frame (base_frame).
         tf2::Transform velocity_transform(ros_orientation);
-        tf2::Vector3 local_frame_velocity = velocity_transform.inverse()(tf2::Vector3(inspva_->east_velocity, inspva_->north_velocity, inspva_->up_velocity));
+        tf2::Vector3 local_frame_velocity = velocity_transform.inverse()(
+          tf2::Vector3(inspva_->east_velocity, inspva_->north_velocity, inspva_->up_velocity));
 
         // FIXME
         //tf2::convert(local_frame_velocity, odometry->twist.twist.linear);

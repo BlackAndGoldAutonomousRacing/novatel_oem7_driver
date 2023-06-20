@@ -99,6 +99,22 @@ public:
     ros_pub_->publish(*msg);
   }
 
+  /**
+   * Const method to get the topic name
+   */
+  std::string getTopic() const
+  {
+    return topic_;
+  }
+
+  /**
+   * Const method to get the frame ID
+   */
+  std::string getFrameId() const
+  {
+    return frame_id_;
+  }
+
 };
 
 }

@@ -12,7 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED) 
 find_package(std_msgs REQUIRED)
 find_package(gps_msgs REQUIRED)
-find_package(gps_tools REQUIRED)
+find_package(geographiclib REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nmea_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -99,9 +99,9 @@ ament_target_dependencies(${PROJECT_NAME}
 	pluginlib
 	std_msgs 
 	gps_msgs
-	gps_tools 
-	sensor_msgs 
-	nmea_msgs 	
+	geographiclib
+	sensor_msgs
+	nmea_msgs
 	nav_msgs
 	tf2_geometry_msgs 
 	novatel_oem7_msgs
@@ -182,7 +182,7 @@ pluginlib_export_plugin_description_file(${PROJECT_NAME} novatel_oem7_driver_plu
 install(TARGETS ${PROJECT_NAME} 
    ARCHIVE DESTINATION lib 
    LIBRARY DESTINATION lib 
-   RUNTIME DESTINATION bin} 
+   RUNTIME DESTINATION bin
 )
 
 install(FILES ${PROJECT_NAME}_plugins.xml DESTINATION share)
