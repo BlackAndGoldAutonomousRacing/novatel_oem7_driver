@@ -99,6 +99,19 @@ public:
     ros_pub_->publish(*msg);
   }
 
+  void publish(std::unique_ptr<M>& msg)
+  {
+    if(!isEnabled())
+    {
+      return;
+    }
+
+    msg->header.frame_id = frame_id_;
+    msg->header.stamp    = node_.now();
+
+    ros_pub_->publish(std::move(msg));
+  }
+
   /**
    * Const method to get the topic name
    */

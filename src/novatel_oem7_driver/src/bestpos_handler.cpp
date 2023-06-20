@@ -262,7 +262,6 @@ namespace novatel_oem7_driver
     int32_t bestgnsspos_period_;
     int32_t inspva_period_;
 
-
     bool position_source_BESTPOS_; //< User override: always use BESTPOS
     bool position_source_INS_; ///< User override: always use INS
 
@@ -586,7 +585,6 @@ namespace novatel_oem7_driver
     void publishROSMessages()
     {
       processPositionAndPublishGPSFix(); // Must be published first, since other message may be derived from it.
-
       publishNavSatFix();
     }
 
@@ -751,7 +749,6 @@ namespace novatel_oem7_driver
       NavSatFix_pub_ = std::make_unique<Oem7RosPublisher<NavSatFix>>("NavSatFix",    node);
 
       DriverParameter<std::string> pos_source_p("oem7_position_source", "",     node);
-
 
       // Determine if position source is overriden by the user; otherwise it is determined dynamically.
       std::string position_source = pos_source_p.value();
