@@ -32,6 +32,8 @@
 #include <novatel_oem7_driver/oem7_ros_messages.hpp>
 
 #include "novatel_oem7_msgs/msg/rxstatus.hpp"
+#include "novatel_oem7_msgs/msg/terrastarinfo.hpp"
+#include "novatel_oem7_msgs/msg/terrastarstatus.hpp"
 
 
 namespace novatel_oem7_driver
@@ -46,30 +48,37 @@ namespace novatel_oem7_driver
       "Invalid FW",
       "ROM",
       "",
+
       "ESN Access",
       "AuthCode",
       "",
-      "Supply Voltage",
+      "Supply voltage",
+
       "",
       "Temperature",
       "MINOS",
       "PLL RF",
+
       "",
       "",
       "",
       "NVM",
+
       "Software resource limit exceeded",
       "Model invalid for this receiver",
       "",
       "",
+
       "Remote loading has begun",
       "Export restriction",
       "Safe Mode",
       "",
+
       "",
       "",
       "",
       "",
+
       "",
       "",
       "",
@@ -79,33 +88,41 @@ namespace novatel_oem7_driver
   /** Oem7 receiver status strings  - refer to Oem7 manual */
   const str_vector_t RECEIVER_STATUS_STRS
   {
+      "Error",
       "Temperature",
-      "Voltage Supply",
-      "Primary antenna not powered",
+      "Voltage supply",
+      "Primary antenna power",
+
       "LNA Failure",
       "Primary antenna open circuit",
       "Primary antenna short circuit",
       "CPU overload",
+
       "COM port tx buffer overrun",
-      "",
-      "",
+      "Spoofing detection",
+      "Reserved",
       "Link overrun",
+
       "Input overrun",
       "Aux transmit overrun",
-      "Antenna gain out of range",
+      "Antenna gain state",
       "Jammer detected",
+
       "INS reset",
       "IMU communication failure",
-      "GPS almanac invalid",
-      "Position solution invalid",
+      "GPS almanac / UTC known",
+      "Position solution",
+
       "Position fixed",
-      "Clock steering disabled",
-      "Clock model invalid",
+      "Clock steering",
+      "Clock model",
       "External oscillator locked",
-      "Software resource warning",
-      "",
-      "Interpret Status/Error Bits as Oem7 format",
-      "Tracking mode: HDR",
+
+      "Software resource",
+      "Version bit 0",
+      "Version bit 1",
+      "Tracking mode",
+
       "Digital filtering enabled",
       "Aux3 event",
       "Aux2 event",
@@ -118,69 +135,83 @@ namespace novatel_oem7_driver
     "Jammer detected on RF1",
     "Jammer detected on RF2",
     "Jammer detected on RF3",
-    "Position averaging On",
+    "Position averaging",
+
     "Jammer detected on RF4",
     "Jammer detected on RF5",
     "Jammer detected on RF6",
-    "USB not connected",
+    "USB connection",
+
     "USB1 buffer overrun",
     "USB2 buffer overrun",
     "USB3 buffer overrun",
     "",
+
     "Profile Activation Error",
     "Throttled Ethernet Reception",
     "",
     "",
+
     "",
     "",
     "Ethernet not connected",
     "ICOM1 buffer overrun",
+
     "ICOM2 buffer overrun",
     "ICOM3 buffer overrun",
     "NCOM1 buffer overrun",
     "NCOM2 buffer overrun",
+
     "NCOM3 buffer overrun",
     "",
     "",
     "",
+
     "",
     "",
-    "",
+    "Status error reported by IMU",
     "IMU measurement outlier detected"
   };
 
   /** Auxiliary 2 Status strings - refer to Oem7 manual. */
   const str_vector_t AUX2_STATUS_STRS
   {
-    "SPI Communication Failure",
-    "I2C Communication Failure",
+    "SPI communication failure",
+    "I2C communication failure",
     "COM4 buffer overrun",
     "COM5 buffer overrun",
+
     "",
     "",
     "",
     "",
+
     "",
     "COM1 buffer overrun",
     "COM2 buffer overrun",
     "COM3 buffer overrun",
+
     "PLL RF1 unlock",
     "PLL RF2 unlock",
     "PLL RF3 unlock",
     "PLL RF4 unlock",
+
     "PLL RF5 unlock",
     "PLL RF6 unlock",
     "CCOM1 buffer overrun",
     "CCOM2 buffer overrun",
+
     "CCOM3 buffer overrun",
     "CCOM4 buffer overrun",
     "CCOM5 buffer overrun",
     "CCOM6 buffer overrun",
+
     "ICOM4 buffer overrun",
     "ICOM5 buffer overrun",
     "ICOM6 buffer overrun",
     "ICOM7 buffer overrun",
-    "Secondary antenna not powered",
+
+    "Secondary antenna power",
     "Secondary antenna open circuit",
     "Secondary antenna short circuit",
     "Reset loop detected",
@@ -193,69 +224,83 @@ namespace novatel_oem7_driver
     "WCOM1 buffer overrun",
     "FILE buffer overrun",
     "",
+
+    "Anntenna 1 gain state bit 1",
+    "Anntenna 1 gain state bit 2",
+    "Anntenna 2 gain state bit 1",
+    "Anntenna 2 gain state bit 1",
+
+    "GPS reference time incorrect",
+    "",
+    "",
+    "",
+
     "",
     "",
     "",
     "",
+
     "",
     "",
     "",
     "",
+
     "",
     "",
     "",
     "",
+
+    "Spoofing calibration status",
+    "Spoofing calibration required",
     "",
     "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
+
     "",
     "Web content is corrupt or does not exist",
-    "RF Calibration Data is present and in error",
-    "RF Calibration data exists and has no errors"
+    "RF calibration data is present and in error",
+    "RF calibration data is present"
   };
 
   const str_vector_t AUX4_STATUS_STRS
   {
-    "<60% of available satellites are tracked well",
-    "<15% of available satellites are tracked well",
+    "GNSS tracked status: <60%% of available satellites are tracked well",
+    "GNSS tracked status: <15%% of available satellites are tracked well",
+    "",
+    "",
+
     "",
     "",
     "",
     "",
+
     "",
     "",
     "",
     "",
-    "",
-    "",
+
     "Clock freewheeling due to bad position integrity",
     "",
-    "Usable RTK Corrections: <60%",
-    "Usable RTK Corrections: <15%",
-    "Bad RTK Geometry",
+    "Usable RTK corrections: <60%",
+    "Usable RTK corrections: <15%",
+
+    "Bad RTK geometry",
     "",
     "",
-    "Long RTK Baseline",
+    "Long RTK baseline",
+
     "Poor RTK COM link",
     "Poor ALIGN COM link",
-    "GLIDE Not Active",
-    "Bad PDP Geometry",
-    "No TerraStar Subscription",
+    "GLIDE not active",
+    "Bad PDP geometry",
+
+    "No TerraStar subscription",
     "",
     "",
     "",
+
     "Bad PPP Geometry",
     "",
-    "No INS Alignment",
+    "No INS alignment",
     "INS not converged"
   };
 
@@ -289,7 +334,9 @@ namespace novatel_oem7_driver
   /*** Handles RXSTATUS messages */
   class ReceiverStatusHandler: public Oem7MessageHandlerIf
   {
-    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::RXSTATUS>> RXSTATUS_pub_;
+    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::RXSTATUS>>         RXSTATUS_pub_;
+    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::TERRASTARINFO>>    TSTInfo_pub_;
+    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::TERRASTARSTATUS>>  TSTStatus_pub_;
 
     std::string frame_id_;
 
@@ -306,16 +353,22 @@ namespace novatel_oem7_driver
       assert(AUX4_STATUS_STRS.size()    == NUM_BITS);
 
 
-      RXSTATUS_pub_ = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::RXSTATUS>>("RXSTATUS", node);
+      RXSTATUS_pub_  = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::RXSTATUS>>(       "RXSTATUS",        node);
+      TSTInfo_pub_   = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::TERRASTARINFO>>(  "TERRASTARINFO",   node);
+      TSTStatus_pub_ = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::TERRASTARSTATUS>>("TERRASTARSTATUS", node);
     }
 
-    const std::vector<int>& getMessageIds()
+    const MessageIdRecords& getMessageIds()
     {
-      static const std::vector<int> MSG_IDS({RXSTATUS_OEM7_MSGID});
+      static const MessageIdRecords MSG_IDS({
+                                        {RXSTATUS_OEM7_MSGID,        MSGFLAG_STATUS_OR_CONFIG},
+                                        {TERRASTARINFO_OEM7_MSGID,   MSGFLAG_STATUS_OR_CONFIG},
+                                        {TERRASTARSTATUS_OEM7_MSGID, MSGFLAG_STATUS_OR_CONFIG},
+                                      });
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishRXSTATUS(Oem7RawMessageIf::ConstPtr msg)
     {
       std::shared_ptr<novatel_oem7_msgs::msg::RXSTATUS> rxstatus;
       MakeROSMessage(msg, rxstatus);
@@ -330,6 +383,36 @@ namespace novatel_oem7_driver
       get_status_info(rxstatus->aux4_stat, AUX4_STATUS_STRS,     rxstatus->aux4_stat_strs, rxstatus->aux4_stat_bits);
 
       RXSTATUS_pub_->publish(rxstatus);
+    }
+
+    void publishTERRASTARINFO(Oem7RawMessageIf::ConstPtr msg)
+    {
+        std::shared_ptr<novatel_oem7_msgs::msg::TERRASTARINFO> terrastarinfo;
+        MakeROSMessage(msg, terrastarinfo);
+        TSTInfo_pub_->publish(terrastarinfo);
+    }
+
+    void publishTERRASTARSTATUS(Oem7RawMessageIf::ConstPtr msg)
+    {
+        std::shared_ptr<novatel_oem7_msgs::msg::TERRASTARSTATUS> terrastarstatus;
+        MakeROSMessage(msg, terrastarstatus);
+        TSTStatus_pub_->publish(terrastarstatus);
+    }
+
+    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    {
+      if(msg->getMessageId() == RXSTATUS_OEM7_MSGID)
+      {
+        publishRXSTATUS(msg);
+      }
+      else if(msg->getMessageId() == TERRASTARINFO_OEM7_MSGID)
+      {
+        publishTERRASTARINFO(msg);
+      }
+      else if(msg->getMessageId() == TERRASTARSTATUS_OEM7_MSGID)
+      {
+        publishTERRASTARSTATUS(msg);
+      }
     }
   };
 
