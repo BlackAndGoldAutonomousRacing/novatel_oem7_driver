@@ -31,9 +31,6 @@
 #include <driver_parameter.hpp>
 #include <novatel_oem7_driver/oem7_ros_messages.hpp>
 
-#include <tf2_ros/transform_broadcaster.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-
 #include <oem7_ros_publisher.hpp>
 
 #include "nav_msgs/msg/odometry.hpp"
@@ -45,6 +42,20 @@
 
 #include <GeographicLib/UTMUPS.hpp>
 
+#include <tf2_ros/transform_broadcaster.h>
+#if __has_include("tf2_geometry_msgs/tf2_geometry_msgs.hpp")
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#else
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+namespace tf2 {
+
+inline void fromMsg(const geometry_msgs::msg::Vector3& in, Vector3& out) {
+  out = tf2::Vector3(in.x, in.y, in.z);
+}
+
+}  // namespace tf2
+#endif
 
 using sensor_msgs::msg::Imu;
 using gps_msgs::msg::GPSFix;
@@ -78,7 +89,7 @@ namespace novatel_oem7_driver
   class OdometryHandler: public Oem7MessageHandlerIf
   {
     rclcpp::Node* node_;
-  
+
     std::unique_ptr<Oem7RosPublisher<Odometry>>       Odometry_pub_;
     std::unique_ptr<Oem7RosPublisher<Odometry>>       Odometry_origin_pub_;
 
@@ -121,7 +132,7 @@ namespace novatel_oem7_driver
       pt.z = hgt;
 
       // unused:
-      bool northhp = false; 
+      bool northhp = false;
       double k = 0.0;
 
       int zonespec = utm_zone_ == -1 ? GeographicLib::UTMUPS::zonespec::MATCH : utm_zone_;
@@ -136,9 +147,9 @@ namespace novatel_oem7_driver
         ++num_failed_conversions;
         auto& clk = *node_->get_clock();
         RCLCPP_WARN_STREAM_THROTTLE(node_->get_logger(), clk, 1000,
-          "Failed Conversion (tot: " << num_failed_conversions << ") Lat: "  << lat      << 
-                                                                   " Lon: "  << lon      << 
-                                                                "; Zone: "   << zonespec << 
+          "Failed Conversion (tot: " << num_failed_conversions << ") Lat: "  << lat      <<
+                                                                   " Lon: "  << lon      <<
+                                                                "; Zone: "   << zonespec <<
                                                                  std::endl   <<
                                                                  ex.what());
         return false;
@@ -149,11 +160,11 @@ namespace novatel_oem7_driver
         pt.y /= k;
       }
       num_failed_conversions = 0;
-      
+
       if(utm_zone_ != new_utm_zone)
       {
         RCLCPP_INFO_STREAM(node_->get_logger(),
-          "UTM new Zone:  " << utm_zone_ << " --> " << new_utm_zone << 
+          "UTM new Zone:  " << utm_zone_ << " --> " << new_utm_zone <<
           "; N: "            << northhp << " X: " << pt.x     << " Y: " << pt.y);
         utm_zone_ = new_utm_zone;
       }
@@ -170,7 +181,7 @@ namespace novatel_oem7_driver
       }
 
       odometry_->child_frame_id = child_frame_;
-  
+
       if(!UTMPointFromGnss(
           odometry_->pose.pose.position,
           gpsfix_->latitude,
@@ -183,7 +194,7 @@ namespace novatel_oem7_driver
       odometry_->pose.covariance[ 0] = gpsfix_->position_covariance[0];
       odometry_->pose.covariance[ 7] = gpsfix_->position_covariance[4];
       odometry_->pose.covariance[14] = gpsfix_->position_covariance[8];
-    
+
       if(imu_) // Corrected is expected; no orientation in raw
       {
         tf2::Quaternion orientation;
@@ -203,10 +214,10 @@ namespace novatel_oem7_driver
         // angular velocity in local ENU
         tf2::Vector3 angular_velocity;
         tf2::fromMsg(imu_->angular_velocity, angular_velocity);
-        tf2::convert(local_tf.inverse()(angular_velocity), odometry_->twist.twist.angular); 
-        
+        tf2::convert(local_tf.inverse()(angular_velocity), odometry_->twist.twist.angular);
+
         tf2::Vector3 local_angular_vel_cov = local_tf.inverse()(tf2::Vector3(
-                                                                imu_->angular_velocity_covariance[0], 
+                                                                imu_->angular_velocity_covariance[0],
                                                                 imu_->angular_velocity_covariance[4],
                                                                 imu_->angular_velocity_covariance[8]
                                                               ));
@@ -215,15 +226,14 @@ namespace novatel_oem7_driver
         odometry_->twist.covariance[28] = local_angular_vel_cov.getY();
         odometry_->twist.covariance[35] = local_angular_vel_cov.getZ();
 
-         
         // Linear velocity in local ENU
         if(inspva_)
-        {   
+        {
           tf2::Vector3 local_linear_velocity = local_tf.inverse()(tf2::Vector3(
-                                                                          inspva_->east_velocity, 
-                                                                          inspva_->north_velocity, 
+                                                                          inspva_->east_velocity,
+                                                                          inspva_->north_velocity,
                                                                           inspva_->up_velocity));
-          tf2::convert(local_linear_velocity, odometry_->twist.twist.linear);        
+          tf2::convert(local_linear_velocity, odometry_->twist.twist.linear);
         }
         if(inspvax_)
         {
@@ -232,7 +242,7 @@ namespace novatel_oem7_driver
                                                                   std::pow(inspvax_->north_velocity_stdev, 2),
                                                                   std::pow(inspvax_->up_velocity_stdev,    2)
                                                                 ));
-      
+
           odometry_->twist.covariance[ 0] = local_linear_vel_cov.getX();
           odometry_->twist.covariance[ 7] = local_linear_vel_cov.getY();
           odometry_->twist.covariance[14] = local_linear_vel_cov.getZ();
@@ -270,9 +280,9 @@ namespace novatel_oem7_driver
         // odometry_->header is automatically populated after publishing.
         tf.header.stamp    = odometry_->header.stamp;
         tf.header.frame_id = odometry_->header.frame_id;
-        
+
         tf.child_frame_id = child_frame_;
-        
+
         tf.transform.translation.x = odometry_->pose.pose.position.x;
         tf.transform.translation.y = odometry_->pose.pose.position.y;
         tf.transform.translation.z = odometry_->pose.pose.position.z;
@@ -282,7 +292,7 @@ namespace novatel_oem7_driver
         tf_bc_->sendTransform(tf);
       }
     }
-  
+
 
   public:
     OdometryHandler():
@@ -354,7 +364,7 @@ namespace novatel_oem7_driver
       imu_sub_     = node.create_subscription<Imu>(    topic("IMU"),     10, std::bind(&OdometryHandler::handleImu,     this, std::placeholders::_1));
       inspva_sub_  = node.create_subscription<INSPVA>( topic("INSPVA"),  10, std::bind(&OdometryHandler::handleINSPVA,  this, std::placeholders::_1));
       inspvax_sub_ = node.create_subscription<INSPVAX>(topic("INSPVAX"), 10, std::bind(&OdometryHandler::handleINSPVAX, this, std::placeholders::_1));
-   
+
       DriverParameter<bool> odom_zero_origin_p("oem7_odometry_zero_origin", false, *node_);
       odom_zero_origin_ = odom_zero_origin_p.value();
 
