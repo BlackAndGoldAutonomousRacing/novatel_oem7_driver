@@ -33,6 +33,7 @@
 
 #include <oem7_ros_publisher.hpp>
 
+#include "geometry_msgs/msg/point_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "gps_msgs/msg/gps_fix.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -40,6 +41,7 @@
 #include "novatel_oem7_msgs/msg/inspva.hpp"
 #include "novatel_oem7_msgs/msg/inspvax.hpp"
 
+#include <GeographicLib/LocalCartesian.hpp>
 #include <GeographicLib/UTMUPS.hpp>
 
 #include <tf2_ros/transform_broadcaster.h>
@@ -49,17 +51,24 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 namespace tf2 {
+inline geometry_msgs::msg::Vector3 toMsg(const Vector3& in) {
+  geometry_msgs::msg::Vector3 out;
+  out.x = in.getX();
+  out.y = in.getY();
+  out.z = in.getZ();
+  return out;
+}
 
 inline void fromMsg(const geometry_msgs::msg::Vector3& in, Vector3& out) {
   out = tf2::Vector3(in.x, in.y, in.z);
 }
-
 }  // namespace tf2
 #endif
 
 using sensor_msgs::msg::Imu;
 using gps_msgs::msg::GPSFix;
 using gps_msgs::msg::GPSStatus;
+using geometry_msgs::msg::PointStamped;
 using nav_msgs::msg::Odometry;
 
 using novatel_oem7_msgs::msg::INSPVA;
@@ -84,14 +93,14 @@ namespace
 namespace novatel_oem7_driver
 {
   /***
-   * Handles Odometryutm_scaled
+   * Handles Odometry
    */
   class OdometryHandler: public Oem7MessageHandlerIf
   {
     rclcpp::Node* node_;
 
     std::unique_ptr<Oem7RosPublisher<Odometry>>       Odometry_pub_;
-    std::unique_ptr<Oem7RosPublisher<Odometry>>       Odometry_origin_pub_;
+    std::unique_ptr<Oem7RosPublisher<PointStamped>>   Odometry_origin_pub_;
 
     std::unique_ptr<TransformBroadcaster> tf_bc_;
 
@@ -108,9 +117,9 @@ namespace novatel_oem7_driver
     INSPVAX::SharedPtr  inspvax_;
 
     int utm_zone_; // UTM Zone we are operating in. Crossing zone boundary results in position jump.
-    bool utm_scaled_; // whether UTM coordinates are pre-processed with the scaling factor.
     double meridian_convergence_; // meridian convergence at the current location.
     bool odom_zero_origin_;
+    GeographicLib::LocalCartesian gps_local_cartesian_; // Local Cartesian projection around gps origin
     bool odom_zero_origin_set_;
     double odom_origin_x_;
     double odom_origin_y_;
@@ -133,7 +142,8 @@ namespace novatel_oem7_driver
 
       // unused:
       bool northhp = false;
-      double k = 0.0;
+      // scaling factor (unused)
+      double k = 1.0;
 
       int zonespec = utm_zone_ == -1 ? GeographicLib::UTMUPS::zonespec::MATCH : utm_zone_;
       int new_utm_zone = 0;
@@ -155,10 +165,6 @@ namespace novatel_oem7_driver
         return false;
       }
       meridian_convergence_ = degreesToRadians(meridian_convergence_);
-      if (utm_scaled_ || odom_zero_origin_){
-        pt.x /= k;
-        pt.y /= k;
-      }
       num_failed_conversions = 0;
 
       if(utm_zone_ != new_utm_zone)
@@ -172,6 +178,16 @@ namespace novatel_oem7_driver
       return true;
     }
 
+    void LocalEnuFromGnss(
+            geometry_msgs::msg::Point& pt,
+            double lat,
+            double lon,
+            double hgt)
+    {
+      gps_local_cartesian_.Forward(lat, lon, hgt, pt.x, pt.y, pt.z);
+      return;
+    }
+
     void publishOdometry()
     {
       if(!gpsfix_)
@@ -182,7 +198,40 @@ namespace novatel_oem7_driver
 
       odometry_->child_frame_id = child_frame_;
 
-      if(!UTMPointFromGnss(
+      if(odom_zero_origin_)
+      {
+        // set GPS origin
+        // TODO: handle manual GPS origin
+        if(!odom_zero_origin_set_)
+        {
+          if (gpsfix_->status.status == GPSStatus::STATUS_NO_FIX)
+            return;
+          std::unique_ptr<PointStamped> ptStamped = std::make_unique<PointStamped>();
+          if(!UTMPointFromGnss(
+              ptStamped->point,
+              gpsfix_->latitude,
+              gpsfix_->longitude,
+              gpsfix_->altitude))
+            return;
+          gps_local_cartesian_.Reset(gpsfix_->latitude, gpsfix_->longitude, 0.0);
+          odom_zero_origin_set_ = true;
+
+          odom_origin_x_ = ptStamped->point.x;
+          odom_origin_y_ = ptStamped->point.y;
+          odom_origin_z_ = ptStamped->point.z;
+
+          Odometry_origin_pub_->publish(std::move(ptStamped));
+
+          RCLCPP_INFO_STREAM(node_->get_logger(),
+                    "Odometry UTM Origin:  " << odom_origin_x_ << " " << odom_origin_y_);
+        }
+        LocalEnuFromGnss(
+          odometry_->pose.pose.position,
+          gpsfix_->latitude,
+          gpsfix_->longitude,
+          gpsfix_->altitude);
+      }
+      else if(!UTMPointFromGnss(
           odometry_->pose.pose.position,
           gpsfix_->latitude,
           gpsfix_->longitude,
@@ -249,29 +298,6 @@ namespace novatel_oem7_driver
         }
       }
 
-
-      // this is the first odometry message received. If the origin is not set, set it.
-      if(odom_zero_origin_ &&
-        !odom_zero_origin_set_ &&
-         gpsfix_->status.status != GPSStatus::STATUS_NO_FIX)
-      {
-          odom_zero_origin_set_ = true;
-
-          odom_origin_x_ = odometry_->pose.pose.position.x;
-          odom_origin_y_ = odometry_->pose.pose.position.y;
-          odom_origin_z_ = odometry_->pose.pose.position.z;
-
-          Odometry_origin_pub_->publish(odometry_);
-
-          RCLCPP_INFO_STREAM(node_->get_logger(),
-                    "Odometry UTM Origin:  " << odom_origin_x_ << " " << odom_origin_y_);
-      }
-
-      // otherwise, the origin will be zero in UTM (!odom_zero_origin), or is already set.
-      odometry_->pose.pose.position.x -= odom_origin_x_;
-      odometry_->pose.pose.position.y -= odom_origin_y_;
-      odometry_->pose.pose.position.z -= odom_origin_z_;
-
       Odometry_pub_->publish(odometry_);
 
       if(tf_bc_) // Publish Transform
@@ -298,7 +324,6 @@ namespace novatel_oem7_driver
     OdometryHandler():
       odometry_(std::make_shared<Odometry>()),
       utm_zone_(-1),
-      utm_scaled_(false),
       meridian_convergence_(0.),
       odom_zero_origin_(false),
       odom_zero_origin_set_(false),
@@ -358,7 +383,7 @@ namespace novatel_oem7_driver
       node_ = &node;
 
       Odometry_pub_         = std::make_unique<Oem7RosPublisher<Odometry>>( "Odometry",       node);
-      Odometry_origin_pub_  = std::make_unique<Oem7RosPublisher<Odometry>>( "OdometryOrigin", node);
+      Odometry_origin_pub_  = std::make_unique<Oem7RosPublisher<PointStamped>>( "OdometryOrigin", node);
 
       gpsfix_sub_  = node.create_subscription<GPSFix>( topic("GPSFix"),  10, std::bind(&OdometryHandler::handleGPSFix,  this, std::placeholders::_1));
       imu_sub_     = node.create_subscription<Imu>(    topic("IMU"),     10, std::bind(&OdometryHandler::handleImu,     this, std::placeholders::_1));
@@ -376,9 +401,6 @@ namespace novatel_oem7_driver
 
       DriverParameter<std::string> child_frame_p("oem7_odometry_child_frame", "base_link", *node_);
       child_frame_ = child_frame_p.value();
-
-      DriverParameter<bool> utm_scaled_p("utm_scaled", false, *node_);
-      utm_scaled_ = utm_scaled_p.value();
     }
 
     const MessageIdRecords& getMessageIds()
