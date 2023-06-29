@@ -56,6 +56,9 @@ set(MSG_FILES
   msg/LocalAreaStatus.msg
   msg/AccessStatus.msg
   msg/GeogatingStatus.msg
+  msg/ObservationStatus.msg
+  msg/TrackStatChannel.msg
+  msg/TRACKSTAT.msg
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

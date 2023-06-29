@@ -112,9 +112,13 @@ namespace novatel_oem7_driver
       desc = desc_p.value();
     }
 
-    void do_init_raw_calibration(const RAWIMUSXMem& raw)
+    void doInitRawCalibration(const RAWIMUSXMem& raw)
     {
+      // intercept the first N messages for calibration.
+      // This formulation allows co-calibration across multiple units running this same piece of driver and the same N,
+      // TODO: although the actual implementation is not there yet.
       const unsigned int calib_len = 200;
+      // single-unit calibration. The unit should be stationary and upright during this period.
       if (static_meas_.size() < calib_len){
         static_meas_.push_back(std::vector<double>{
           static_cast<double>(raw.x_acc),
@@ -137,6 +141,7 @@ namespace novatel_oem7_driver
             }
         );
         std::for_each(avg.begin(), avg.end(), [](double &v){ v /= static_cast<double>(calib_len); });
+        // TODO: maybe we can also calculate variance?
         if (init_raw_calibration_lin_){
           bias_raw_imu_acc_[0] = avg[0];
           bias_raw_imu_acc_[1] = avg[1];
@@ -149,6 +154,7 @@ namespace novatel_oem7_driver
           bias_raw_imu_rot_[2] = avg[5];
           init_raw_calibration_ang_ = false;
         }
+        static_meas_.clear(); // frees up memory.
       }
     }
 
@@ -260,9 +266,19 @@ namespace novatel_oem7_driver
         imu->orientation_covariance[8] = std::pow(insstdev_->azimuth_stdev, 2);
       }
 
-      // FIXME: are these still required?
-      // imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
-      // imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
+      // TODO hard-coded for now. Should be set in the oem7_imu.cpp as product-specific values.
+      const double LINEAR_COV = 0.0009;
+      const double ANGULAR_COV = 0.00035;
+      // these are 3x3 matrices, so in 0, 4, 8 spots
+      // C 0 0
+      // 0 C 0
+      // 0 0 C
+      imu->angular_velocity_covariance[0] = ANGULAR_COV;
+      imu->angular_velocity_covariance[4] = ANGULAR_COV;
+      imu->angular_velocity_covariance[8] = ANGULAR_COV;
+      imu->linear_acceleration_covariance[0] = LINEAR_COV;
+      imu->linear_acceleration_covariance[4] = LINEAR_COV;
+      imu->linear_acceleration_covariance[8] = LINEAR_COV;
 
       imu_pub_->publish(imu);
     }
@@ -291,16 +307,19 @@ namespace novatel_oem7_driver
 
     void processRawImuMsg(Oem7RawMessageIf::ConstPtr msg)
     {
+      // since RAWIMUS has reduced content without benefits in size,
+      // we should always use the eXtended version (RAWIMUSX).
       const RAWIMUSXMem* raw;
       
       if (init_raw_calibration_lin_ || init_raw_calibration_ang_) {
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
-        do_init_raw_calibration(*raw);
+        doInitRawCalibration(*raw);
         if (!raw_imu_pub_->isEnabled()          ||
             imu_rate_                   == 0    ||
             imu_raw_gyro_scale_factor_  == 0.0  ||
             imu_raw_accel_scale_factor_ == 0.0)
           return;
+        // upon calibration done, the values should see a small jump.
       } else if (!raw_imu_pub_->isEnabled()   ||
           imu_rate_                   == 0    ||
           imu_raw_gyro_scale_factor_  == 0.0  ||
@@ -321,9 +340,8 @@ namespace novatel_oem7_driver
       imu->linear_acceleration.y = -computeLinearAccelerationFromRaw(raw->y_acc, bias_raw_imu_acc_[1]);  // Refer to RAWIMUSX documentation
       imu->linear_acceleration.z =  computeLinearAccelerationFromRaw(raw->z_acc, bias_raw_imu_acc_[2]);
 
-      // FIXME: are these still required?
-      // imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
-      // imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
+      imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
+      imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
       imu->orientation_covariance[0] = DATA_NOT_AVAILABLE;
 
       raw_imu_pub_->publish(imu);

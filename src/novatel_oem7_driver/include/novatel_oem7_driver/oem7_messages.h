@@ -190,9 +190,34 @@ namespace novatel_oem7_driver
     oem7_hex_t         ext_sol_stat;
     uint8_t            galileo_beidou_sig_mask;
     uint8_t            gps_glonass_sig_mask;
-   };
-   static_assert(sizeof(BESTGNSSPOSMem) == 72, ASSERT_MSG);
+  };
+  static_assert(sizeof(BESTGNSSPOSMem) == 72, ASSERT_MSG);
 
+  struct __attribute__((packed))
+  TRACKSTATMem
+  {
+    oem7_enum_t        sol_stat;
+    oem7_enum_t        pos_type;
+    float              cutoff;
+    uint32_t           num_channels;
+  };
+  static_assert(sizeof(TRACKSTATMem) == 16, ASSERT_MSG);
+
+  struct __attribute__((packed))
+  TrackStatChannelMem
+  {
+    int16_t           prn;
+    int16_t           glofreq;
+    uint32_t          ch_tr_status;
+    double            psr;
+    float             doppler;
+    float             c_no;
+    float             locktime;
+    float             psr_res;
+    uint32_t          reject;
+    float             psr_weight;
+  };
+  static_assert(sizeof(TrackStatChannelMem) == 40, ASSERT_MSG);
 
   struct __attribute__((packed))
   INSPVASmem
@@ -462,6 +487,23 @@ namespace novatel_oem7_driver
     uint32_t system;
     float    tdop;
   };
+
+  // since RAWIMUS and RAWIMUSX have the same size,
+  // we should by default using the eXtended version.
+  struct __attribute__((packed))
+  RAWIMUSMem
+  {
+    uint32_t       gnss_week;
+    double         gnss_week_seconds;
+    oem7_hex_t     imu_status[4];
+    int32_t        z_accel;
+    int32_t        y_accel;
+    int32_t        x_accel;
+    int32_t        z_gyro;
+    int32_t        y_gyro;
+    int32_t        x_gyro;
+  };
+  static_assert(sizeof(RAWIMUSMem) == 40, ASSERT_MSG);
 
   struct __attribute__((packed))
   RAWIMUSXMem

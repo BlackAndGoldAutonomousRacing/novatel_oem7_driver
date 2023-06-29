@@ -48,7 +48,8 @@
 #include "novatel_oem7_msgs/msg/terrastarinfo.hpp"
 #include "novatel_oem7_msgs/msg/terrastarstatus.hpp"
 #include "novatel_oem7_msgs/msg/time.hpp"
-
+#include "novatel_oem7_msgs/msg/trackstat.hpp"
+#include "novatel_oem7_msgs/msg/track_stat_channel.hpp"
 
 
 #define arr_size(_arr_) (sizeof(_arr_) / sizeof(_arr_[0]))
@@ -255,6 +256,47 @@ MakeROSMessage<novatel_oem7_msgs::msg::BESTGNSSPOS>(
   static const std::string name = "BESTGNSSPOS";
   SetOem7Header(msg, name, bestgnsspos->nov_header);
 }
+
+
+template<>
+void
+MakeROSMessage<novatel_oem7_msgs::msg::TRACKSTAT>(
+    const Oem7RawMessageIf::ConstPtr& msg,
+    std::shared_ptr<novatel_oem7_msgs::msg::TRACKSTAT>& track_stat)
+{
+  assert(msg->getMessageId()== TRACKSTAT_OEM7_MSGID);
+
+  const TRACKSTATMem* track_msg = reinterpret_cast<const TRACKSTATMem*>(msg->getMessageData(OEM7_BINARY_MSG_HDR_LEN));
+  track_stat.reset(new novatel_oem7_msgs::msg::TRACKSTAT);
+
+  track_stat->sol_status.status     = track_msg->sol_stat;
+  track_stat->pos_type.type         = track_msg->pos_type;
+  track_stat->cutoff = track_msg->cutoff;
+  track_stat->num_channels = track_msg->num_channels;
+
+  const size_t NOVATEL_TRACKSTAT_BODY_FIELDS = OEM7_BINARY_MSG_HDR_LEN + 16;
+  const size_t NOVATEL_TRACKSTAT_CHANNEL_FIELDS = 40;
+
+  for (size_t i = 0; i < track_msg->num_channels; ++i) {
+    size_t offset = NOVATEL_TRACKSTAT_BODY_FIELDS + i * NOVATEL_TRACKSTAT_CHANNEL_FIELDS;
+    const TrackStatChannelMem* chan_msg = reinterpret_cast<const TrackStatChannelMem*>(msg->getMessageData(offset));
+
+    novatel_oem7_msgs::msg::TrackStatChannel chan; 
+    chan.prn = chan_msg->prn;
+    chan.glofreq = chan_msg->glofreq;
+    chan.ch_tr_status = chan_msg->ch_tr_status;
+    chan.psr = chan_msg->psr;
+    chan.doppler = chan_msg->doppler;
+    chan.c_no = chan_msg->c_no;
+    chan.locktime = chan_msg->locktime;
+    chan.psr_res = chan_msg->psr_res;
+    chan.reject.status = chan_msg->reject;
+    chan.psr_weight = chan_msg->psr_weight;
+    track_stat->channels.push_back(chan);
+  }
+  SetOem7Header(msg, "TRACKSTAT", track_stat->nov_header);
+}
+
 
 template<>
 void

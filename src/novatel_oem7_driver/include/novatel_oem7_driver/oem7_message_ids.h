@@ -49,6 +49,9 @@ namespace novatel_oem7_driver
   const int TERRASTARINFO_OEM7_MSGID      = 1719;
   const int TERRASTARSTATUS_OEM7_MSGID    = 1729;
   const int TIME_OEM7_MSGID               =  101;
+  const int TRACKSTAT_OEM7_MSGID          =   83;
+  const int RAWIMU_OEM7_MSGID             =  268;
+  const int RAWIMUS_OEM7_MSGID            =  325;
   const int RAWIMUSX_OEM7_MSGID           = 1462;
 
   // NMEA0183
@@ -67,9 +70,6 @@ namespace novatel_oem7_driver
   const int GPRMC_OEM7_MSGID              =   225;
   const int GPVTG_OEM7_MSGID              =   226;
   const int GPZDA_OEM7_MSGID              =   227;
-
-
-
 
 }
 
