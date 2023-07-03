@@ -627,6 +627,7 @@ MakeROSMessage<novatel_oem7_msgs::msg::TERRASTARSTATUS>(
   SetOem7Header(msg, name, terrastarstatus->nov_header);
 }
 
+
 template
 void
 MakeROSMessage(const Oem7RawMessageIf::ConstPtr&, std::shared_ptr<novatel_oem7_msgs::msg::BESTPOS>&);

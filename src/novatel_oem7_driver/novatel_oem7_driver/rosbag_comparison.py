@@ -81,7 +81,6 @@ def item_gen(item):
 
         if member.startswith("_"):  # exclude private stuff, it's irrelevant and blows up getattr.
             continue
-
         value = getattr(item, member)
 
         if is_primitive(value) or is_float_type(value):
@@ -114,7 +113,7 @@ def compare_messages(ref_msg, uut_msg):
     t = type(ref_msg.header.stamp)
     ref_msg.header.stamp = t()
     uut_msg.header.stamp = t()
-    
+
     ref_value_gen = item_gen(ref_msg)
     uut_value_gen = item_gen(uut_msg)
     for ref_value in ref_value_gen:
@@ -148,7 +147,7 @@ def compare_messages(ref_msg, uut_msg):
             print("Type:      '{}'".format(type(ref_value)))
 
             return False
-   
+
     return True
     
 

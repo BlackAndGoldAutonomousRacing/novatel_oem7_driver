@@ -47,6 +47,7 @@
 
 #include "novatel_oem7_msgs/msg/oem7_header.hpp"
 
+
 namespace novatel_oem7_driver
 {
   typedef std::vector<std::string> init_cmds_t; ///< List of initialization commands.
@@ -386,7 +387,6 @@ namespace novatel_oem7_driver
           {
             updateLogStatistics(raw_msg);
             msg_handler_->handleMessage(raw_msg);
-
             // Publish raw messages regardless; they are all for debugging.
 
             // Publish Oem7RawMsg if specified
