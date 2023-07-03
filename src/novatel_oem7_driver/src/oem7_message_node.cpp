@@ -47,7 +47,6 @@
 
 #include "novatel_oem7_msgs/msg/oem7_header.hpp"
 
-
 namespace novatel_oem7_driver
 {
   typedef std::vector<std::string> init_cmds_t; ///< List of initialization commands.
@@ -77,6 +76,7 @@ namespace novatel_oem7_driver
 
     Oem7RosPublisher<novatel_oem7_msgs::msg::Oem7RawMsg> oem7rawmsg_pub_; ///< Publishes raw Oem7 messages.
     bool publish_unknown_oem7raw_; ///< Publish all unknown messages to 'Oem7Raw'
+
 
     rclcpp::CallbackGroup::SharedPtr msg_service_cb_grp_; ///< Message service callbacks
     rclcpp::CallbackGroup::SharedPtr cmd_service_cb_grp_; ///< Command service callbacks

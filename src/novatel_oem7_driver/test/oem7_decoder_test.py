@@ -75,7 +75,7 @@ def item_gen(item):
                     for c in item_gen(value):
                         yield c
             pass  # methods, classmethods, etc.
-    
+
 def compare(ref_msg, uut_msg):
     """
     Compares contents of two bags; fails if the contents are not identical (except for ROS seqno, timestamp).
