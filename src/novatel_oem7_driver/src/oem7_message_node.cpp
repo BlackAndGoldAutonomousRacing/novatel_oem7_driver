@@ -79,8 +79,8 @@ namespace novatel_oem7_driver
     bool publish_unknown_oem7raw_; ///< Publish all unknown messages to 'Oem7Raw'
 
 
-    rclcpp::callback_group::CallbackGroup::SharedPtr msg_service_cb_grp_; ///< Message service callbacks
-    rclcpp::callback_group::CallbackGroup::SharedPtr cmd_service_cb_grp_; ///< Command service callbacks
+    rclcpp::CallbackGroup::CallbackGroup::SharedPtr msg_service_cb_grp_; ///< Message service callbacks
+    rclcpp::CallbackGroup::CallbackGroup::SharedPtr cmd_service_cb_grp_; ///< Command service callbacks
 
     rclcpp::Service<novatel_oem7_msgs::srv::Oem7AbasciiCmd>::SharedPtr oem7_abascii_cmd_srv_;
 
@@ -155,13 +155,13 @@ namespace novatel_oem7_driver
       // Load plugins
 
       // Load Oem7Receiver
-      declare_parameter("oem7_if");
+      declare_parameter<std::string>("oem7_if");
       rclcpp::Parameter oem7_if_param = get_parameter("oem7_if");
       recvr_ = recvr_loader_.createSharedInstance(oem7_if_param.as_string());
       recvr_->initialize(*this);
 
       // Load Oem7 Message Decoder
-      declare_parameter("oem7_msg_decoder");
+      declare_parameter<std::string>("oem7_msg_decoder");
       rclcpp::Parameter msg_decoder_param = get_parameter("oem7_msg_decoder");
       msg_decoder = oem7_msg_decoder_loader.createSharedInstance(msg_decoder_param.as_string());
       msg_decoder->initialize(*this, recvr_.get(), this);
@@ -170,7 +170,7 @@ namespace novatel_oem7_driver
       msg_handler_.reset(new MessageHandler(*this));
 
       // Oem7 raw messages to publish.
-      declare_parameter("oem7_raw_msgs");
+      declare_parameter<std::vector<int>>("oem7_raw_msgs");
       rclcpp::Parameter oem7_raw_msgs_param = get_parameter("oem7_raw_msgs");
 
       std::vector<long> raw_msg = oem7_raw_msgs_param.as_integer_array();
@@ -188,8 +188,8 @@ namespace novatel_oem7_driver
         }
       }
 
-      msg_service_cb_grp_ = this->create_callback_group(rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
-      cmd_service_cb_grp_ = this->create_callback_group(rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
+      msg_service_cb_grp_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+      cmd_service_cb_grp_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
 
       timer_ = create_wall_timer(
@@ -561,7 +561,7 @@ int main(int argc, char* argv[])
   auto oem7 = std::make_shared<novatel_oem7_driver::Oem7MessageNode>(options);
 
   static const size_t THREAD_NUM = 2; // Receive and blocking command service.
-  rclcpp::executors::MultiThreadedExecutor executor(rclcpp::executor::ExecutorArgs(), THREAD_NUM);
+  rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), THREAD_NUM);
   executor.add_node(oem7);
   executor.spin();
   rclcpp::shutdown();
