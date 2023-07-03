@@ -227,10 +227,6 @@ namespace novatel_oem7_driver
         return;
 
       std::shared_ptr<sensor_msgs::msg::Imu> imu(new sensor_msgs::msg::Imu);
-    
-      // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
-      static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
-      double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
 
       // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
       static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;

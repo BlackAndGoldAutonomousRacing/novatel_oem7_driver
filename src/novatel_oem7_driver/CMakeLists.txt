@@ -103,13 +103,13 @@ add_dependencies(${PROJECT_NAME} ${OEM7_DECODER})
 
 ament_target_dependencies(${PROJECT_NAME} 
 	pluginlib
-	std_msgs 
+	std_msgs
 	gps_msgs
 	sensor_msgs
 	nmea_msgs
 	geometry_msgs
 	nav_msgs
-	tf2_geometry_msgs 
+	tf2_geometry_msgs
 	novatel_oem7_msgs
 )
 

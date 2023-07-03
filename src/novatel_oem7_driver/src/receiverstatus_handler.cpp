@@ -78,6 +78,7 @@ namespace novatel_oem7_driver
       "",
       "",
       "",
+
       "",
       "",
       "",
@@ -101,22 +102,27 @@ namespace novatel_oem7_driver
       "Spoofing detection",
       "Reserved",
       "Link overrun",
+
       "Input overrun",
       "Aux transmit overrun",
       "Antenna gain state",
       "Jammer detected",
+
       "INS reset",
       "IMU communication failure",
       "GPS almanac / UTC known",
       "Position solution",
+
       "Position fixed",
       "Clock steering",
       "Clock model",
       "External oscillator locked",
+
       "Software resource",
       "Version bit 0",
       "Version bit 1",
       "Tracking mode",
+
       "Digital filtering enabled",
       "Aux3 event",
       "Aux2 event",
@@ -130,30 +136,37 @@ namespace novatel_oem7_driver
     "Jammer detected on RF2",
     "Jammer detected on RF3",
     "Position averaging",
+
     "Jammer detected on RF4",
     "Jammer detected on RF5",
     "Jammer detected on RF6",
     "USB connection",
+
     "USB1 buffer overrun",
     "USB2 buffer overrun",
     "USB3 buffer overrun",
     "",
+
     "Profile Activation Error",
     "Throttled Ethernet Reception",
     "",
     "",
+
     "",
     "",
     "Ethernet not connected",
     "ICOM1 buffer overrun",
+
     "ICOM2 buffer overrun",
     "ICOM3 buffer overrun",
     "NCOM1 buffer overrun",
     "NCOM2 buffer overrun",
+
     "NCOM3 buffer overrun",
     "",
     "",
     "",
+
     "",
     "",
     "Status error reported by IMU",
@@ -172,26 +185,32 @@ namespace novatel_oem7_driver
     "",
     "",
     "",
+
     "",
     "COM1 buffer overrun",
     "COM2 buffer overrun",
     "COM3 buffer overrun",
+
     "PLL RF1 unlock",
     "PLL RF2 unlock",
     "PLL RF3 unlock",
     "PLL RF4 unlock",
+
     "PLL RF5 unlock",
     "PLL RF6 unlock",
     "CCOM1 buffer overrun",
     "CCOM2 buffer overrun",
+
     "CCOM3 buffer overrun",
     "CCOM4 buffer overrun",
     "CCOM5 buffer overrun",
     "CCOM6 buffer overrun",
+
     "ICOM4 buffer overrun",
     "ICOM5 buffer overrun",
     "ICOM6 buffer overrun",
     "ICOM7 buffer overrun",
+
     "Secondary antenna power",
     "Secondary antenna open circuit",
     "Secondary antenna short circuit",
@@ -220,10 +239,12 @@ namespace novatel_oem7_driver
     "",
     "",
     "",
+
     "",
     "",
     "",
     "",
+
     "",
     "",
     "",

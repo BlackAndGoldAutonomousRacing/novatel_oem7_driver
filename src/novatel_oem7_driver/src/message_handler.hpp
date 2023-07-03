@@ -52,6 +52,7 @@ namespace novatel_oem7_driver
     typedef std::pair<MessageHandlerIf, unsigned int>                  MessageHandlerRecord;
     typedef std::list<MessageHandlerRecord>                            MsgHandlerRecordList;
     typedef std::map<int, std::unique_ptr<MsgHandlerRecordList>>       MessageHandlerMap;
+
     rclcpp::Node& node_;
 
     MsgHandlerIfList    msg_handler_list_; ///< All message handlers

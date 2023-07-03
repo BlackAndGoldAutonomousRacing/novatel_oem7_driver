@@ -58,7 +58,7 @@ namespace novatel_oem7_driver
       {
         MessageIdRecord rec(id, MSGFLAG_NONE);
         msg_id_records_.push_back(rec);
-      } 
+      }
 
       return msg_id_records_;
     }
