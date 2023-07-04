@@ -34,29 +34,29 @@ import numpy
 
 def get_topic_list(bag_name):
     """ Return a list of topics stored in this bag """
-    
+
     conn = sqlite3.connect(bag_name)
     cursor = conn.cursor()
 
     topics_data = cursor.execute("SELECT id, name, type FROM topics").fetchall()
     topic_info = {name_of:(id_of, type_of) for id_of,name_of,type_of in topics_data}
-    
+
     return topic_info
-     
+
 
 
 def get_topic_messages(bag_name, topic):
     """
     Returns a list of messages for a specific topic in this bag
     """
-    
+
     conn = sqlite3.connect(bag_name)
     cursor = conn.cursor()
 
     # Get from the db
     rows = cursor.execute("SELECT timestamp, data FROM messages WHERE topic_id = {}".format(topic[0])).fetchall()
     data =  [deserialize_message(data, get_message(topic[1])) for timestamp,data in rows]
-    return (m for m in data) 
+    return (m for m in data)
 
 
 """ The functions below check for type of class objects in nested ROS messages """
@@ -81,6 +81,7 @@ def item_gen(item):
 
         if member.startswith("_"):  # exclude private stuff, it's irrelevant and blows up getattr.
             continue
+
         value = getattr(item, member)
 
         if is_primitive(value) or is_float_type(value):
@@ -106,7 +107,7 @@ def item_gen(item):
 
 def compare_messages(ref_msg, uut_msg):
     """
-    Compares a reference message to a UUT message: 
+    Compares a reference message to a UUT message:
     fails if the fields are not identical (except for ROS timestamp).
     """
     # Supress seqno, timestamp
@@ -149,7 +150,7 @@ def compare_messages(ref_msg, uut_msg):
             return False
 
     return True
-    
+
 
 
 def verify_bag_equivalency(ref_bag, uut_bag):
@@ -159,20 +160,20 @@ def verify_bag_equivalency(ref_bag, uut_bag):
 
   ref_topics = get_topic_list(ref_bag)
   for topic in ref_topics.keys():
-      
+
       print(topic)
       ref_msgs = get_topic_messages(ref_bag, ref_topics[topic])
       uut_msgs = get_topic_messages(uut_bag, ref_topics[topic])
-      
+
       msgno = 0
       for ref_msg in ref_msgs:
         uut_msg = next(uut_msgs)
         if not compare_messages(ref_msg, uut_msg):
             print("Topic: {} Msg No: {}".format(topic, msgno))
             assert False
-            
+
         msgno += 1
-      
+
       print("Verified {} '{}' messages".format(msgno, topic))
       # Check for presence of unexpected messages
       unexpected_messages = 0
@@ -182,14 +183,14 @@ def verify_bag_equivalency(ref_bag, uut_bag):
               print("Unexpected message")
               print(uut_msg)
               unexpected_messages += 1
-  
+
       except StopIteration:
         pass # Normal
-      
+
       except:
         traceback.print_exc()
         assert(False)
-        
+
       assert(unexpected_messages == 0)
 
 
