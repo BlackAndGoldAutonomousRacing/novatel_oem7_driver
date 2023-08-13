@@ -246,13 +246,13 @@ namespace novatel_oem7_driver
       {
         double instantaneous_rate_factor = imu_rate_ / corrimu_->imu_data_count;
 
-        imu->angular_velocity.x =  corrimu_->roll_rate  * instantaneous_rate_factor;
-        imu->angular_velocity.y = -corrimu_->pitch_rate * instantaneous_rate_factor;
-        imu->angular_velocity.z =  corrimu_->yaw_rate   * instantaneous_rate_factor;
+        imu->angular_velocity.x = corrimu_->roll_rate  * instantaneous_rate_factor;
+        imu->angular_velocity.y = corrimu_->pitch_rate * instantaneous_rate_factor;
+        imu->angular_velocity.z = corrimu_->yaw_rate   * instantaneous_rate_factor;
 
-        imu->linear_acceleration.x =  corrimu_->longitudinal_acc * instantaneous_rate_factor;
-        imu->linear_acceleration.y = -corrimu_->lateral_acc      * instantaneous_rate_factor;
-        imu->linear_acceleration.z =  corrimu_->vertical_acc     * instantaneous_rate_factor;
+        imu->linear_acceleration.x = corrimu_->longitudinal_acc * instantaneous_rate_factor;
+        imu->linear_acceleration.y = corrimu_->lateral_acc      * instantaneous_rate_factor;
+        imu->linear_acceleration.z = corrimu_->vertical_acc     * instantaneous_rate_factor;
       }
 
       if(insstdev_)
@@ -347,8 +347,8 @@ namespace novatel_oem7_driver
   public:
     INSHandler():
       imu_rate_(0),
-      imu_raw_gyro_scale_factor_ (1.0),
-      imu_raw_accel_scale_factor_(1.0)
+      imu_raw_gyro_scale_factor_ (0.0),
+      imu_raw_accel_scale_factor_(0.0)
     {
     }
 
