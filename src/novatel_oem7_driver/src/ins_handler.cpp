@@ -169,7 +169,7 @@ namespace novatel_oem7_driver
 
       std::string imu_desc;
       getImuDescription(imu_type, imu_desc);
-      
+
       if(imu_rate_ == 0) // No override; this is normal.
       {
         imu_rate_ = getImuRate(imu_type);
@@ -193,7 +193,7 @@ namespace novatel_oem7_driver
             imu_raw_gyro_scale_factor_,
             imu_raw_accel_scale_factor_))
         {
-          RCLCPP_ERROR_STREAM(node_->get_logger(), 
+          RCLCPP_ERROR_STREAM(node_->get_logger(),
             "IMU type= '" << insconfig->imu_type << "'; Scale factors unavilable. Raw IMU output disabled");
           return;
         }
@@ -247,13 +247,13 @@ namespace novatel_oem7_driver
       {
         double instantaneous_rate_factor = imu_rate_ / corrimu_->imu_data_count;
 
-        imu->angular_velocity.x =  corrimu_->roll_rate  * instantaneous_rate_factor;
-        imu->angular_velocity.y = -corrimu_->pitch_rate * instantaneous_rate_factor;
-        imu->angular_velocity.z =  corrimu_->yaw_rate   * instantaneous_rate_factor;
+        imu->angular_velocity.x = corrimu_->roll_rate  * instantaneous_rate_factor;
+        imu->angular_velocity.y = corrimu_->pitch_rate * instantaneous_rate_factor;
+        imu->angular_velocity.z = corrimu_->yaw_rate   * instantaneous_rate_factor;
 
-        imu->linear_acceleration.x =  corrimu_->longitudinal_acc * instantaneous_rate_factor;
-        imu->linear_acceleration.y = -corrimu_->lateral_acc      * instantaneous_rate_factor;
-        imu->linear_acceleration.z =  corrimu_->vertical_acc     * instantaneous_rate_factor;
+        imu->linear_acceleration.x = corrimu_->longitudinal_acc * instantaneous_rate_factor;
+        imu->linear_acceleration.y = corrimu_->lateral_acc      * instantaneous_rate_factor;
+        imu->linear_acceleration.z = corrimu_->vertical_acc     * instantaneous_rate_factor;
       }
 
       if(insstdev_)
@@ -307,7 +307,7 @@ namespace novatel_oem7_driver
       // since RAWIMUS has reduced content without benefits in size,
       // we should always use the eXtended version (RAWIMUSX).
       const RAWIMUSXMem* raw;
-      
+
       if (init_raw_calibration_lin_ || init_raw_calibration_ang_) {
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
         doInitRawCalibration(*raw);
@@ -325,7 +325,7 @@ namespace novatel_oem7_driver
       } else {
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
       }
-        
+
       std::shared_ptr<sensor_msgs::msg::Imu> imu = std::make_shared<sensor_msgs::msg::Imu>();
       // All measurements are in sensor frame, uncorrected for gravity. There is no up, forward, left;
       // x, y, z are nominal references to enclsoure housing.
@@ -348,8 +348,8 @@ namespace novatel_oem7_driver
   public:
     INSHandler():
       imu_rate_(0),
-      imu_raw_gyro_scale_factor_ (1.0),
-      imu_raw_accel_scale_factor_(1.0)
+      imu_raw_gyro_scale_factor_ (0.0),
+      imu_raw_accel_scale_factor_(0.0)
     {
     }
 
