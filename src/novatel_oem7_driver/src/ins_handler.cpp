@@ -229,8 +229,8 @@ namespace novatel_oem7_driver
       std::shared_ptr<sensor_msgs::msg::Imu> imu(new sensor_msgs::msg::Imu);
 
       // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
-      static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
-      double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+      //static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
+      //double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
 
       // Conversion to quaternion addresses rollover.
       // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
@@ -238,7 +238,7 @@ namespace novatel_oem7_driver
       tf_orientation.setRPY(
                          degreesToRadians(inspva_->roll),
                         -degreesToRadians(inspva_->pitch),
-                        -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
+                        -degreesToRadians(inspva_->azimuth)); // Oem7 LH to ROS RH rule
 
       imu->orientation = tf2::toMsg(tf_orientation);
 
