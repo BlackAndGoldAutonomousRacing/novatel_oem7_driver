@@ -112,13 +112,9 @@ getImuRawScaleFactors(
       break;
 
     case IMU_TYPE_EPSON_G320:
-      gyro_scale = degreesToRadians(0.008 / pow(2.0, 16) / 125.);
-      acc_scale  = (0.2 / pow(2.0, 16) / 125.) * (ONE_G/1000.0);
-      break;
-
     case IMU_TYPE_EPSON_G320_200HZ:
-      gyro_scale = degreesToRadians(0.008 / pow(2.0, 16) / 200.);
-      acc_scale  = (0.2 / pow(2.0, 16) / 200.) * (ONE_G/1000.0);
+      gyro_scale = degreesToRadians(0.008 / pow(2.0, 16));
+      acc_scale  = (0.2 / pow(2.0, 16)) * (ONE_G/1000.0);
       break;
 
     case IMU_TYPE_HG4930_AN01:
