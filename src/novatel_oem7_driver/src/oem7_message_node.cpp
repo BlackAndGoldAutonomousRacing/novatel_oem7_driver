@@ -525,8 +525,8 @@ namespace novatel_oem7_driver
 
  public:
 
-    Oem7MessageNode(const rclcpp::NodeOptions& options):
-      rclcpp::Node("Oem7Message", options),
+    Oem7MessageNode(rclcpp::NodeOptions options):
+      rclcpp::Node("Oem7Message", options.use_intra_process_comms(true)),
       oem7rawmsg_pub_("Oem7RawMsg", *this),
       recvr_loader_(          "novatel_oem7_driver", "novatel_oem7_driver::Oem7ReceiverIf"),
       oem7_msg_decoder_loader("novatel_oem7_driver", "novatel_oem7_driver::Oem7MessageDecoderIf"),

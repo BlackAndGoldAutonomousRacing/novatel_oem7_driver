@@ -370,7 +370,7 @@ namespace novatel_oem7_driver
     }
 
 
-    std::string topic(std::string publisher)
+    std::string topic(const std::string& publisher)
     {
       std::string topic;
       node_->get_parameter(publisher + ".topic", topic);

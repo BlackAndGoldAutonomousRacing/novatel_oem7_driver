@@ -99,7 +99,7 @@ public:
     ros_pub_->publish(*msg);
   }
 
-  void publish(std::unique_ptr<M>& msg)
+  void publish(std::unique_ptr<M> msg)
   {
     if(!isEnabled())
     {

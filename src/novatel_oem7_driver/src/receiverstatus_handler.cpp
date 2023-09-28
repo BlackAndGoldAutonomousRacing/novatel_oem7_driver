@@ -370,8 +370,8 @@ namespace novatel_oem7_driver
 
     void publishRXSTATUS(Oem7RawMessageIf::ConstPtr msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::RXSTATUS> rxstatus;
-      MakeROSMessage(msg, rxstatus);
+      auto rxstatus = std::make_unique<novatel_oem7_msgs::msg::RXSTATUS>();
+      MakeROSMessage(msg, *rxstatus);
 
       // Populate status strings:
       get_status_info(rxstatus->error,     RECEIVER_ERROR_STRS,  rxstatus->error_strs,     rxstatus->error_bits);
@@ -382,21 +382,21 @@ namespace novatel_oem7_driver
       get_status_info(rxstatus->aux3_stat, AUX3_STATUS_STRS,     rxstatus->aux3_stat_strs, rxstatus->aux3_stat_bits);
       get_status_info(rxstatus->aux4_stat, AUX4_STATUS_STRS,     rxstatus->aux4_stat_strs, rxstatus->aux4_stat_bits);
 
-      RXSTATUS_pub_->publish(rxstatus);
+      RXSTATUS_pub_->publish(std::move(rxstatus));
     }
 
     void publishTERRASTARINFO(Oem7RawMessageIf::ConstPtr msg)
     {
-        std::shared_ptr<novatel_oem7_msgs::msg::TERRASTARINFO> terrastarinfo;
-        MakeROSMessage(msg, terrastarinfo);
-        TSTInfo_pub_->publish(terrastarinfo);
+        auto terrastarinfo = std::make_unique<novatel_oem7_msgs::msg::TERRASTARINFO>();
+        MakeROSMessage(msg, *terrastarinfo);
+        TSTInfo_pub_->publish(std::move(terrastarinfo));
     }
 
     void publishTERRASTARSTATUS(Oem7RawMessageIf::ConstPtr msg)
     {
-        std::shared_ptr<novatel_oem7_msgs::msg::TERRASTARSTATUS> terrastarstatus;
-        MakeROSMessage(msg, terrastarstatus);
-        TSTStatus_pub_->publish(terrastarstatus);
+        auto terrastarstatus = std::make_unique<novatel_oem7_msgs::msg::TERRASTARSTATUS>();
+        MakeROSMessage(msg, *terrastarstatus);
+        TSTStatus_pub_->publish(std::move(terrastarstatus));
     }
 
     void handleMsg(Oem7RawMessageIf::ConstPtr msg)

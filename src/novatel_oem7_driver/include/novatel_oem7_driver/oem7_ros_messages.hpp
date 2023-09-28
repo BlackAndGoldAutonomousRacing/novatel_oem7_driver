@@ -36,7 +36,7 @@ namespace novatel_oem7_driver
 
   template <class T>
   void
-  MakeROSMessage(const Oem7RawMessageIf::ConstPtr& msg, std::shared_ptr<T>& rosmsg);
+  MakeROSMessage(const Oem7RawMessageIf::ConstPtr& msg, T& rosmsg);
 
   void
   GetDOPFromPSRDOP2(

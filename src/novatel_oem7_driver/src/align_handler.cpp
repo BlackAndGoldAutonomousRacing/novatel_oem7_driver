@@ -47,9 +47,9 @@ namespace novatel_oem7_driver
     void publishHEADING2(
         Oem7RawMessageIf::ConstPtr msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::HEADING2> heading2;
-      MakeROSMessage(msg, heading2);
-      HEADING2_pub_->publish(heading2);
+      auto heading2 = std::make_unique<novatel_oem7_msgs::msg::HEADING2>();
+      MakeROSMessage(msg, *heading2);
+      HEADING2_pub_->publish(std::move(heading2));
     }
 
   public:

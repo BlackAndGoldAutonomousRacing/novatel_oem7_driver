@@ -39,9 +39,9 @@ namespace novatel_oem7_driver
 
     void publishTIME(Oem7RawMessageIf::ConstPtr msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::TIME> time;
-      MakeROSMessage(msg, time);
-      TIME_pub_->publish(time);
+      auto time = std::make_unique<novatel_oem7_msgs::msg::TIME>();
+      MakeROSMessage(msg, *time);
+      TIME_pub_->publish(std::move(time));
     }
 
   public:
