@@ -409,7 +409,7 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
         assert(false);
     }

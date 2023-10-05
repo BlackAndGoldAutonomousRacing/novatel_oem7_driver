@@ -63,7 +63,7 @@ namespace novatel_oem7_driver
   /**
    * Dispatches raw messages to plugins for decoding.
    */
-  void MessageHandler::handleMessage(Oem7RawMessageIf::ConstPtr raw_msg)
+  void MessageHandler::handleMessage(const Oem7RawMessageIf::ConstPtr& raw_msg)
   {
     MessageHandlerMap::iterator itr = msg_handler_map_.find(raw_msg->getMessageId());
     if(itr == msg_handler_map_.end())

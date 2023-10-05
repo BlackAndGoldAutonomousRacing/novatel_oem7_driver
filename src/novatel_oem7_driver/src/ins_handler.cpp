@@ -160,7 +160,7 @@ namespace novatel_oem7_driver
     }
 
 
-    void processInsConfigMsg(Oem7RawMessageIf::ConstPtr msg)
+    void processInsConfigMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       auto insconfig = std::make_unique<INSCONFIG>();
       MakeROSMessage(msg, *insconfig);
@@ -207,13 +207,13 @@ namespace novatel_oem7_driver
                       << "accel scale= "  << imu_raw_accel_scale_factor_);
     }
 
-    void publishInsPVAMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishInsPVAMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *inspva_);
       inspva_pub_->publish(inspva_);
     }
 
-    void publishInsPVAXMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       auto inspvax = std::make_unique<INSPVAX>();
       MakeROSMessage(msg, *inspvax);
@@ -221,7 +221,7 @@ namespace novatel_oem7_driver
       inspvax_pub_->publish(std::move(inspvax));
     }
 
-    void publishCorrImuMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishCorrImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *corrimu_);
       corrimu_pub_->publish(corrimu_);
@@ -287,7 +287,7 @@ namespace novatel_oem7_driver
       imu_pub_->publish(std::move(imu));
     }
 
-    void publishInsStDevMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishInsStDevMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *insstdev_);
       insstdev_pub_->publish(insstdev_);
@@ -309,7 +309,7 @@ namespace novatel_oem7_driver
       return (raw_acc - bias_iu) * imu_raw_accel_scale_factor_;
     }
 
-    void processRawImuMsg(Oem7RawMessageIf::ConstPtr msg)
+    void processRawImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       // since RAWIMUS has reduced content without benefits in size,
       // we should always use the eXtended version (RAWIMUSX).
@@ -404,7 +404,7 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       switch(msg->getMessageId()){
         case INSPVAS_OEM7_MSGID:

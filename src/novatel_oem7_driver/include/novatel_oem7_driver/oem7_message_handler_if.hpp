@@ -65,7 +65,7 @@ namespace novatel_oem7_driver
     /**
      * Handle a message
      */
-    virtual void handleMsg(Oem7RawMessageIf::ConstPtr msg) = 0;
+    virtual void handleMsg(const Oem7RawMessageIf::ConstPtr& msg) = 0;
   };
 }
 

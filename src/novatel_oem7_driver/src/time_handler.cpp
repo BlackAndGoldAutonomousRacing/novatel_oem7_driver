@@ -37,7 +37,7 @@ namespace novatel_oem7_driver
   {
     std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::TIME>> TIME_pub_;
 
-    void publishTIME(Oem7RawMessageIf::ConstPtr msg)
+    void publishTIME(const Oem7RawMessageIf::ConstPtr& msg)
     {
       auto time = std::make_unique<novatel_oem7_msgs::msg::TIME>();
       MakeROSMessage(msg, *time);
@@ -64,7 +64,7 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       publishTIME(msg);
     }

@@ -368,7 +368,7 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void publishRXSTATUS(Oem7RawMessageIf::ConstPtr msg)
+    void publishRXSTATUS(const Oem7RawMessageIf::ConstPtr& msg)
     {
       auto rxstatus = std::make_unique<novatel_oem7_msgs::msg::RXSTATUS>();
       MakeROSMessage(msg, *rxstatus);
@@ -385,21 +385,21 @@ namespace novatel_oem7_driver
       RXSTATUS_pub_->publish(std::move(rxstatus));
     }
 
-    void publishTERRASTARINFO(Oem7RawMessageIf::ConstPtr msg)
+    void publishTERRASTARINFO(const Oem7RawMessageIf::ConstPtr& msg)
     {
         auto terrastarinfo = std::make_unique<novatel_oem7_msgs::msg::TERRASTARINFO>();
         MakeROSMessage(msg, *terrastarinfo);
         TSTInfo_pub_->publish(std::move(terrastarinfo));
     }
 
-    void publishTERRASTARSTATUS(Oem7RawMessageIf::ConstPtr msg)
+    void publishTERRASTARSTATUS(const Oem7RawMessageIf::ConstPtr& msg)
     {
         auto terrastarstatus = std::make_unique<novatel_oem7_msgs::msg::TERRASTARSTATUS>();
         MakeROSMessage(msg, *terrastarstatus);
         TSTStatus_pub_->publish(std::move(terrastarstatus));
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       if(msg->getMessageId() == RXSTATUS_OEM7_MSGID)
       {

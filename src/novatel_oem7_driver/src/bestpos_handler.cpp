@@ -268,8 +268,8 @@ namespace novatel_oem7_driver
     std::shared_ptr<TRACKSTAT> trackstat_ = std::make_shared<TRACKSTAT>();
 
     Oem7RawMessageIf::ConstPtr psrdop2_;
-    INSPVA::ConstPtr inspva_;
-    INSPVAX::ConstPtr inspvax_;
+    INSPVA::SharedPtr inspva_;
+    INSPVAX::SharedPtr inspvax_;
 
     int64_t last_bestpos_;
     int64_t last_bestvel_;
@@ -322,7 +322,7 @@ namespace novatel_oem7_driver
       last_msg_msec = cur_msg_msec;
     }
 
-    void publishBESTPOS(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *bestpos_);
       updatePeriod(bestpos_, last_bestpos_, bestpos_period_);
@@ -330,32 +330,32 @@ namespace novatel_oem7_driver
       BESTPOS_pub_->publish(bestpos_);
     }
 
-    void publishBESTVEL(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTVEL(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *bestvel_);
       updatePeriod(bestvel_, last_bestvel_, bestvel_period_);
       BESTVEL_pub_->publish(bestvel_);
     }
 
-    void publishBESTUTM(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTUTM(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *bestutm_);
       BESTUTM_pub_->publish(bestutm_);
     }
 
-    void publishBESTGNSSPOS(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTGNSSPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *bestgnsspos_);
       BESTGNSSPOS_pub_->publish(bestgnsspos_);
     }
 
-    void publishTRACKSTAT(Oem7RawMessageIf::ConstPtr msg)
+    void publishTRACKSTAT(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *trackstat_);
       TRACKSTAT_pub_->publish(trackstat_);
     }
 
-    void publishPPPPOS(Oem7RawMessageIf::ConstPtr msg)
+    void publishPPPPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
       MakeROSMessage(msg, *ppppos_);
       PPPPOS_pub_->publish(ppppos_);
@@ -765,7 +765,7 @@ namespace novatel_oem7_driver
       NavSatFix_pub_ = std::make_unique<Oem7RosPublisher<NavSatFix>>("NavSatFix", node);
 
       inspva_sub_ = node.create_subscription<INSPVA>(topic("INSPVA"), 10,
-        [&](INSPVA::ConstPtr msg){
+        [&](const INSPVA::SharedPtr msg){
           inspva_ = msg;
           updatePeriod(inspva_, last_inspva_, inspva_period_);
           if(isShortestPeriod(inspva_period_))
@@ -775,7 +775,7 @@ namespace novatel_oem7_driver
         }
       );
       inspvax_sub_ = node.create_subscription<INSPVAX>(topic("INSPVAX"), 10,
-        [&](INSPVAX::ConstPtr msg){ inspvax_ = msg; }
+        [&](const INSPVAX::SharedPtr msg){ inspvax_ = msg; }
       );
 
       time_offset_pub_ = node.create_publisher<std_msgs::msg::Float64>("time/offset", rclcpp::SensorDataQoS());
@@ -816,7 +816,7 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       RCLCPP_DEBUG_STREAM(node_->get_logger(),
                         "BESTPOS < [id=" << msg->getMessageId() << "] periods (BP BV BGP PVA):" <<
