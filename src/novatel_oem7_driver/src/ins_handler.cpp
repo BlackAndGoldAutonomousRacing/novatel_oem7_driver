@@ -42,7 +42,6 @@
 
 #include "novatel_oem7_msgs/msg/corrimu.hpp"
 #include "novatel_oem7_msgs/msg/imuratecorrimu.hpp"
-// #include "novatel_oem7_msgs/msg/insstdev.hpp"
 #include "novatel_oem7_msgs/msg/insconfig.hpp"
 #include "novatel_oem7_msgs/msg/inspva.hpp"
 #include "novatel_oem7_msgs/msg/inspvax.hpp"
@@ -53,10 +52,8 @@
 #include <math.h>
 #include <map>
 
-namespace novatel_oem7_driver
+namespace
 {
-  using namespace novatel_oem7_msgs::msg;
-
   /***
    * Converts degrees to Radians
    *
@@ -67,7 +64,28 @@ namespace novatel_oem7_driver
     return degrees * M_PIf64 / 180.0;
   }
 
+  /**
+   * @brief Rotates a 3x3 covariance matrix
+   * 
+   * @return rotated cov matrix in tf2::Matrix3x3 form.
+   */
+  inline tf2::Matrix3x3 rotateCovMatrix(const tf2::Transform& tf,
+                                                 const std::array<double, 9UL>& covIn)
+  {
+    tf2::Matrix3x3 covMat(covIn[0], covIn[1], covIn[2],
+                            covIn[3], covIn[4], covIn[5],
+                            covIn[6], covIn[7], covIn[8]);
+    tf2::Matrix3x3 tfRot = tf.getBasis();
+    return tfRot * covMat * tfRot.transpose();
+  }
+
   const double DATA_NOT_AVAILABLE = -1.0; ///< Used to initialized unpopulated fields.
+
+}
+
+namespace novatel_oem7_driver
+{
+  using namespace novatel_oem7_msgs::msg;
 
   class INSHandler: public Oem7MessageHandlerIf
   {
@@ -78,16 +96,15 @@ namespace novatel_oem7_driver
     std::unique_ptr<Oem7RosPublisher<CORRIMU>>                corrimu_pub_;
     std::unique_ptr<Oem7RosPublisher
             <geometry_msgs::msg::TwistWithCovarianceStamped>> ins_vel_pub_;
-    // FIXME: insstdev and inspvax are highly redundant. Use inspvax.
-    // std::unique_ptr<Oem7RosPublisher<INSSTDEV>>               insstdev_pub_;
     std::unique_ptr<Oem7RosPublisher<INSPVA>>                 inspva_pub_;
     std::unique_ptr<Oem7RosPublisher<INSPVAX>>                inspvax_pub_;
     std::unique_ptr<Oem7RosPublisher<INSCONFIG>>              insconfig_pub_;
 
-    std::shared_ptr<INSPVA>   inspva_ = std::make_shared<INSPVA>();
     std::shared_ptr<INSPVAX>  inspvax_ = std::make_shared<INSPVAX>();
-    std::shared_ptr<CORRIMU>  corrimu_ = std::make_shared<CORRIMU>();
-    // std::shared_ptr<INSSTDEV> insstdev_ = std::make_shared<INSSTDEV>();
+
+    bool inspva_present_;
+    tf2::Transform enu_to_local_rotation_;
+    geometry_msgs::msg::TwistWithCovarianceStamped twist_w_cov_;
 
     oem7_imu_rate_t imu_rate_;                ///< IMU output rate
     double imu_raw_gyro_scale_factor_;        ///< IMU-specific raw gyroscope scaling
@@ -212,10 +229,64 @@ namespace novatel_oem7_driver
                       << "accel scale= "  << imu_raw_accel_scale_factor_);
     }
 
+    void updateEnuOrientation(const INSPVA& inspva)
+    {
+      // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
+      // static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
+      // double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+
+      // Conversion to quaternion addresses rollover.
+      // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
+      tf2::Quaternion orientation;
+      orientation.setRPY(degreesToRadians(inspva.roll),
+                        -degreesToRadians(inspva.pitch),
+                        // -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
+                        -degreesToRadians(inspva.azimuth));
+
+      enu_to_local_rotation_.setRotation(orientation);
+    }
+
+    void publishInsTwistMsg(const INSPVA& inspva)
+    {
+      if (!imu_pub_->isEnabled() || !inspva_present_ || imu_rate_ == 0)
+        return;
+
+      auto local_to_enu_rotation = enu_to_local_rotation_.inverse();
+      // update twist with covariace stamped using inspva_ and inspvax_
+
+      tf2::Vector3 local_linear_velocity = local_to_enu_rotation(tf2::Vector3(
+                                                                inspva.east_velocity,
+                                                                inspva.north_velocity,
+                                                                inspva.up_velocity));
+      tf2::convert(local_linear_velocity, twist_w_cov_.twist.twist.linear);
+      if(inspvax_)
+      {
+        auto local_linear_vel_cov = rotateCovMatrix(local_to_enu_rotation,
+                                            {std::pow(inspvax_->east_velocity_stdev, 2), 0., 0.,
+                                             0., std::pow(inspvax_->north_velocity_stdev, 2), 0.,
+                                             0., 0., std::pow(inspvax_->up_velocity_stdev, 2)});
+        twist_w_cov_.twist.covariance[ 0] = local_linear_vel_cov[0][0];
+        twist_w_cov_.twist.covariance[ 1] = local_linear_vel_cov[0][1];
+        twist_w_cov_.twist.covariance[ 2] = local_linear_vel_cov[0][2];
+        twist_w_cov_.twist.covariance[ 6] = local_linear_vel_cov[1][0];
+        twist_w_cov_.twist.covariance[ 7] = local_linear_vel_cov[1][1];
+        twist_w_cov_.twist.covariance[ 8] = local_linear_vel_cov[1][2];
+        twist_w_cov_.twist.covariance[12] = local_linear_vel_cov[2][0];
+        twist_w_cov_.twist.covariance[13] = local_linear_vel_cov[2][1];
+        twist_w_cov_.twist.covariance[14] = local_linear_vel_cov[2][2];
+      }
+
+      ins_vel_pub_->publish(twist_w_cov_);
+    }
+
     void publishInsPVAMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *inspva_);
-      inspva_pub_->publish(inspva_);
+      auto inspva = std::make_unique<INSPVA>();
+      MakeROSMessage(msg, *inspva);
+      updateEnuOrientation(*inspva);
+      inspva_present_ = true;
+      publishInsTwistMsg(*inspva);
+      inspva_pub_->publish(std::move(inspva));
     }
 
     void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
@@ -226,51 +297,33 @@ namespace novatel_oem7_driver
 
     void publishCorrImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *corrimu_);
-      corrimu_pub_->publish(corrimu_);
+      auto corrimu = std::make_unique<CORRIMU>();
+      MakeROSMessage(msg, *corrimu);
+      publishImuMsg(*corrimu);
+      corrimu_pub_->publish(std::move(corrimu));
     }
 
-    void publishInsTwistMsg()
+    void publishImuMsg(const CORRIMU& corrimu)
     {
-      if (!imu_pub_->isEnabled() || inspva_->header.stamp.sec || imu_rate_ == 0)
-        return;
-
-      // FIXME: publish twist with covariace stamped using inspva_ and inspvax_
-    }
-
-    void publishImuMsg()
-    {
-      if(!imu_pub_->isEnabled() || inspva_->header.stamp.sec || imu_rate_ == 0)
+      if(!imu_pub_->isEnabled() || !inspva_present_ || imu_rate_ == 0)
         return;
 
       auto imu = std::make_unique<sensor_msgs::msg::Imu>();
+      imu->orientation = tf2::toMsg(enu_to_local_rotation_.getRotation());
 
-      // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
-      // static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
-      // double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
-
-      // Conversion to quaternion addresses rollover.
-      // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
-      tf2::Quaternion tf_orientation;
-      tf_orientation.setRPY(
-                         degreesToRadians(inspva_->roll),
-                        -degreesToRadians(inspva_->pitch),
-                        // -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
-                        -degreesToRadians(inspva_->azimuth));
-
-      imu->orientation = tf2::toMsg(tf_orientation);
-
-      if(corrimu_->header.stamp.sec && corrimu_->imu_data_count > 0)
+      if(corrimu.imu_data_count > 0)
       {
-        double instantaneous_rate_factor = imu_rate_ / corrimu_->imu_data_count;
+        double instantaneous_rate_factor = imu_rate_ / corrimu.imu_data_count;
 
-        imu->angular_velocity.x = corrimu_->roll_rate  * instantaneous_rate_factor;
-        imu->angular_velocity.y = corrimu_->pitch_rate * instantaneous_rate_factor;
-        imu->angular_velocity.z = corrimu_->yaw_rate   * instantaneous_rate_factor;
+        imu->angular_velocity.x = corrimu.roll_rate  * instantaneous_rate_factor;
+        imu->angular_velocity.y = corrimu.pitch_rate * instantaneous_rate_factor;
+        imu->angular_velocity.z = corrimu.yaw_rate   * instantaneous_rate_factor;
 
-        imu->linear_acceleration.x = corrimu_->longitudinal_acc * instantaneous_rate_factor;
-        imu->linear_acceleration.y = corrimu_->lateral_acc      * instantaneous_rate_factor;
-        imu->linear_acceleration.z = corrimu_->vertical_acc     * instantaneous_rate_factor;
+        imu->linear_acceleration.x = corrimu.longitudinal_acc * instantaneous_rate_factor;
+        imu->linear_acceleration.y = corrimu.lateral_acc      * instantaneous_rate_factor;
+        imu->linear_acceleration.z = corrimu.vertical_acc     * instantaneous_rate_factor;
+
+        twist_w_cov_.twist.twist.angular = imu->angular_velocity;
       }
 
       if(inspvax_->header.stamp.sec)
@@ -295,15 +348,11 @@ namespace novatel_oem7_driver
       imu->linear_acceleration_covariance[8] = LINEAR_COV;
 
       imu_pub_->publish(std::move(imu));
-    }
 
-    /*
-    void publishInsStDevMsg(const Oem7RawMessageIf::ConstPtr& msg)
-    {
-      MakeROSMessage(msg, *insstdev_);
-      insstdev_pub_->publish(insstdev_);
+      twist_w_cov_.twist.covariance[21] = ANGULAR_COV;
+      twist_w_cov_.twist.covariance[28] = ANGULAR_COV;
+      twist_w_cov_.twist.covariance[35] = ANGULAR_COV;
     }
-    */
 
     /**
      * @return angular velocity, rad / sec
@@ -366,6 +415,8 @@ namespace novatel_oem7_driver
 
   public:
     INSHandler():
+      inspva_present_(false),
+      enu_to_local_rotation_(tf2::Quaternion(0.,0.,0.,1.)),
       imu_rate_(0),
       imu_raw_gyro_scale_factor_ (0.0),
       imu_raw_accel_scale_factor_(0.0)
@@ -385,7 +436,6 @@ namespace novatel_oem7_driver
       corrimu_pub_   = std::make_unique<Oem7RosPublisher<CORRIMU>>(              "CORRIMU",   node);
       ins_vel_pub_   = std::make_unique<Oem7RosPublisher
                               <geometry_msgs::msg::TwistWithCovarianceStamped>>( "INS_Twist", node);
-      // insstdev_pub_  = std::make_unique<Oem7RosPublisher<INSSTDEV>>(             "INSSTDEV",  node);
       inspva_pub_    = std::make_unique<Oem7RosPublisher<INSPVA>>(               "INSPVA",    node);
       inspvax_pub_   = std::make_unique<Oem7RosPublisher<INSPVAX>>(              "INSPVAX",   node);
       insconfig_pub_ = std::make_unique<Oem7RosPublisher<INSCONFIG>>(            "INSCONFIG", node);
@@ -410,7 +460,6 @@ namespace novatel_oem7_driver
                                         {IMURATECORRIMUS_OEM7_MSGID,     MSGFLAG_NONE},
                                         {INSPVAS_OEM7_MSGID,             MSGFLAG_NONE},
                                         {INSPVAX_OEM7_MSGID,             MSGFLAG_NONE},
-                                        // {INSSTDEV_OEM7_MSGID,            MSGFLAG_NONE},
                                         {INSPVAS_OEM7_MSGID,             MSGFLAG_NONE},
                                         {INSCONFIG_OEM7_MSGID,           MSGFLAG_STATUS_OR_CONFIG},
                                       }
@@ -423,17 +472,10 @@ namespace novatel_oem7_driver
       switch(msg->getMessageId()){
         case INSPVAS_OEM7_MSGID:
           publishInsPVAMsg(msg);
-          publishInsTwistMsg();
           break;
-        /*
-        case INSSTDEV_OEM7_MSGID:
-          publishInsStDevMsg(msg);
-          break;
-        */
         case CORRIMUS_OEM7_MSGID:
         case IMURATECORRIMUS_OEM7_MSGID:
           publishCorrImuMsg(msg);
-          publishImuMsg();
           break;
         case INSCONFIG_OEM7_MSGID:
           processInsConfigMsg(msg);

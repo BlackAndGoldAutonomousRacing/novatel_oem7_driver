@@ -38,9 +38,6 @@
 #include "gps_msgs/msg/gps_fix.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 
-// #include "novatel_oem7_msgs/msg/inspva.hpp"
-// #include "novatel_oem7_msgs/msg/inspvax.hpp"
-
 #include <GeographicLib/LocalCartesian.hpp>
 #include <GeographicLib/UTMUPS.hpp>
 
@@ -71,9 +68,6 @@ using gps_msgs::msg::GPSStatus;
 using geometry_msgs::msg::PointStamped;
 using nav_msgs::msg::Odometry;
 
-// using novatel_oem7_msgs::msg::INSPVA;
-// using novatel_oem7_msgs::msg::INSPVAX;
-
 using tf2_ros::TransformBroadcaster;
 
 namespace
@@ -91,19 +85,16 @@ namespace
   /**
    * @brief Rotates a 3x3 covariance matrix
    * 
-   * @return rotated cov matrix in std::array<double,9UL> form.
+   * @return rotated cov matrix in tf2::Matrix3x3 form.
    */
-  inline std::array<double, 9UL> rotateCovMatrix(const tf2::Transform& tf,
+  inline tf2::Matrix3x3 rotateCovMatrix(const tf2::Transform& tf,
                                                  const std::array<double, 9UL>& covIn)
   {
     tf2::Matrix3x3 covMat(covIn[0], covIn[1], covIn[2],
                             covIn[3], covIn[4], covIn[5],
                             covIn[6], covIn[7], covIn[8]);
     tf2::Matrix3x3 tfRot = tf.getBasis();
-    covMat = tfRot * covMat * tfRot.transpose();
-    return {covMat[0][0], covMat[0][1], covMat[0][2],
-            covMat[1][0], covMat[1][1], covMat[1][2],
-            covMat[2][0], covMat[2][1], covMat[2][2]};
+    return tfRot * covMat * tfRot.transpose();
   }
 }
 
@@ -126,13 +117,8 @@ namespace novatel_oem7_driver
 
     rclcpp::Subscription<GPSFix>::SharedPtr    gpsfix_sub_;
     rclcpp::Subscription<Imu>::SharedPtr       imu_sub_;
-    // rclcpp::Subscription<INSPVA>::SharedPtr    inspva_sub_;
-    // rclcpp::Subscription<INSPVAX>::SharedPtr   inspvax_sub_;
 
     GPSFix::SharedPtr   gpsfix_;
-    Imu::SharedPtr      imu_;
-    // INSPVA::SharedPtr   inspva_;
-    // INSPVAX::SharedPtr  inspvax_;
 
     int utm_zone_; // UTM Zone we are operating in. Crossing zone boundary results in position jump.
     double meridian_convergence_; // meridian convergence at the current location.
@@ -206,7 +192,7 @@ namespace novatel_oem7_driver
       return;
     }
 
-    void publishOdometry()
+    void publishOdometry(sensor_msgs::msg::Imu* imu)
     {
       if(!gpsfix_)
       {
@@ -262,10 +248,10 @@ namespace novatel_oem7_driver
       odometry_.pose.covariance[ 7] = gpsfix_->position_covariance[4];
       odometry_.pose.covariance[14] = gpsfix_->position_covariance[8];
 
-      if(imu_) // Corrected is expected; no orientation in raw
+      if(imu) // Corrected is expected; no orientation in raw
       {
         tf2::Quaternion orientation;
-        tf2::fromMsg(imu_->orientation, orientation);
+        tf2::fromMsg(imu->orientation, orientation);
         tf2::Transform local_tf(orientation); // Twist is rotated into local frame
         tf2::Transform local_tf_inv = local_tf.inverse();
 
@@ -275,37 +261,27 @@ namespace novatel_oem7_driver
         orientation = meridian_rotation * orientation;
         odometry_.pose.pose.orientation = tf2::toMsg(orientation);
 
-        odometry_.pose.covariance[21] = imu_->orientation_covariance[0];
-        odometry_.pose.covariance[28] = imu_->orientation_covariance[4];
-        odometry_.pose.covariance[35] = imu_->orientation_covariance[8];
+        odometry_.pose.covariance[21] = imu->orientation_covariance[0];
+        odometry_.pose.covariance[28] = imu->orientation_covariance[4];
+        odometry_.pose.covariance[35] = imu->orientation_covariance[8];
 
         // angular velocity in local ENU
         tf2::Vector3 angular_velocity;
-        tf2::fromMsg(imu_->angular_velocity, angular_velocity);
+        tf2::fromMsg(imu->angular_velocity, angular_velocity);
         tf2::convert(local_tf_inv(angular_velocity), odometry_.twist.twist.angular);
-        auto angular_vel_cov_rot = rotateCovMatrix(local_tf_inv, imu_->angular_velocity_covariance);
+        auto angular_vel_cov_rot = rotateCovMatrix(local_tf_inv, imu->angular_velocity_covariance);
 
-        odometry_.twist.covariance[21] = angular_vel_cov_rot[0];
-        odometry_.twist.covariance[22] = angular_vel_cov_rot[1];
-        odometry_.twist.covariance[23] = angular_vel_cov_rot[2];
-        odometry_.twist.covariance[27] = angular_vel_cov_rot[3];
-        odometry_.twist.covariance[28] = angular_vel_cov_rot[4];
-        odometry_.twist.covariance[29] = angular_vel_cov_rot[5];
-        odometry_.twist.covariance[33] = angular_vel_cov_rot[6];
-        odometry_.twist.covariance[34] = angular_vel_cov_rot[7];
-        odometry_.twist.covariance[35] = angular_vel_cov_rot[8];
+        odometry_.twist.covariance[21] = angular_vel_cov_rot[0][0];
+        odometry_.twist.covariance[22] = angular_vel_cov_rot[0][1];
+        odometry_.twist.covariance[23] = angular_vel_cov_rot[0][2];
+        odometry_.twist.covariance[27] = angular_vel_cov_rot[1][0];
+        odometry_.twist.covariance[28] = angular_vel_cov_rot[1][1];
+        odometry_.twist.covariance[29] = angular_vel_cov_rot[1][2];
+        odometry_.twist.covariance[33] = angular_vel_cov_rot[2][0];
+        odometry_.twist.covariance[34] = angular_vel_cov_rot[2][1];
+        odometry_.twist.covariance[35] = angular_vel_cov_rot[2][2];
 
         // Linear velocity in local ENU
-        /*
-        if(inspva_)
-        {
-          tf2::Vector3 local_linear_velocity = local_tf_inv(tf2::Vector3(
-                                                                      inspva_->east_velocity,
-                                                                      inspva_->north_velocity,
-                                                                      inspva_->up_velocity));
-          tf2::convert(local_linear_velocity, odometry_->twist.twist.linear);
-        }
-        */
         // N.B. gpsfix_->track is in NED and in degrees
         double track_ground_rad = degreesToRadians(gpsfix_->track);
         double sin_trk = std::sin(track_ground_rad);
@@ -314,34 +290,21 @@ namespace novatel_oem7_driver
                                                                   gpsfix_->speed * sin_trk,
                                                                   gpsfix_->speed * cos_trk,
                                                                   gpsfix_->climb));
-        /*
-        if(inspvax_)
-        {
-          tf2::Vector3 local_linear_vel_cov = local_tf_inv(tf2::Vector3(
-                                                      std::pow(inspvax_->east_velocity_stdev,  2),
-                                                      std::pow(inspvax_->north_velocity_stdev, 2),
-                                                      std::pow(inspvax_->up_velocity_stdev,    2)
-                                              ));
 
-          odometry_->twist.covariance[ 0] = local_linear_vel_cov.getX();
-          odometry_->twist.covariance[ 7] = local_linear_vel_cov.getY();
-          odometry_->twist.covariance[14] = local_linear_vel_cov.getZ();
-        }
-        */
         // Use speed in gpsfix_. The speed is calculated from Doppler frequency shift.
         // A typical static stdev can be taken as 0.5m/s.
         // Ref: https://docs.novatel.com/OEM7/Content/Logs/BESTVEL.htm
         const auto linear_vel_cov_rot = rotateCovMatrix(local_tf_inv,
                                                       {0.25, 0., 0., 0., 0.25, 0., 0., 0., 0.25});
-        odometry_.twist.covariance[0] = linear_vel_cov_rot[0];
-        odometry_.twist.covariance[1] = linear_vel_cov_rot[1];
-        odometry_.twist.covariance[2] = linear_vel_cov_rot[2];
-        odometry_.twist.covariance[6] = linear_vel_cov_rot[3];
-        odometry_.twist.covariance[7] = linear_vel_cov_rot[4];
-        odometry_.twist.covariance[8] = linear_vel_cov_rot[5];
-        odometry_.twist.covariance[12] = linear_vel_cov_rot[6];
-        odometry_.twist.covariance[13] = linear_vel_cov_rot[7];
-        odometry_.twist.covariance[14] = linear_vel_cov_rot[8];
+        odometry_.twist.covariance[0] = linear_vel_cov_rot[0][0];
+        odometry_.twist.covariance[1] = linear_vel_cov_rot[0][1];
+        odometry_.twist.covariance[2] = linear_vel_cov_rot[0][2];
+        odometry_.twist.covariance[6] = linear_vel_cov_rot[1][0];
+        odometry_.twist.covariance[7] = linear_vel_cov_rot[1][1];
+        odometry_.twist.covariance[8] = linear_vel_cov_rot[1][2];
+        odometry_.twist.covariance[12] = linear_vel_cov_rot[2][0];
+        odometry_.twist.covariance[13] = linear_vel_cov_rot[2][1];
+        odometry_.twist.covariance[14] = linear_vel_cov_rot[2][2];
       }
 
       Odometry_pub_->publish(odometry_);
@@ -391,29 +354,16 @@ namespace novatel_oem7_driver
       //GPSFix drives odometry, until IMU output is detected.
       if(!imu_present_)
       {
-        publishOdometry();
+        publishOdometry(nullptr);
       }
 
     }
 
-    /*
-    void handleINSPVA(const INSPVA::SharedPtr inspva)
+    void handleImu(const Imu::UniquePtr imu)
     {
-      inspva_ = inspva;
-    }
-    void handleINSPVAX(const INSPVAX::SharedPtr inspvax)
-    {
-      inspvax_ = inspvax;
-    }
-    */
-
-    void handleImu(const Imu::SharedPtr imu)
-    {
-      imu_ = imu;
-
       imu_present_ = true;
 
-      publishOdometry();
+      publishOdometry(imu.get());
     }
 
 
@@ -434,8 +384,6 @@ namespace novatel_oem7_driver
 
       gpsfix_sub_  = node.create_subscription<GPSFix>( topic("GPSFix"),  10, std::bind(&OdometryHandler::handleGPSFix,  this, std::placeholders::_1));
       imu_sub_     = node.create_subscription<Imu>(    topic("IMU"),     10, std::bind(&OdometryHandler::handleImu,     this, std::placeholders::_1));
-      // inspva_sub_  = node.create_subscription<INSPVA>( topic("INSPVA"),  10, std::bind(&OdometryHandler::handleINSPVA,  this, std::placeholders::_1));
-      // inspvax_sub_ = node.create_subscription<INSPVAX>(topic("INSPVAX"), 10, std::bind(&OdometryHandler::handleINSPVAX, this, std::placeholders::_1));
 
       DriverParameter<bool> odom_zero_origin_p("oem7_odometry_zero_origin", false, *node_);
       odom_zero_origin_ = odom_zero_origin_p.value();

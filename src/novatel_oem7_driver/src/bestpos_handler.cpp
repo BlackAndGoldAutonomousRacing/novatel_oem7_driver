@@ -486,7 +486,7 @@ namespace novatel_oem7_driver
         prev_prefer_INS = prefer_INS;
         //--------------------------------------------------------------------------------------------------------
 
-        if(bestpos_->header.stamp.sec == 0 || prefer_INS)
+        if(!bestpos_->header.stamp.sec || prefer_INS)
         {
           gpsfix_->latitude   = inspva_->latitude;
           gpsfix_->longitude  = inspva_->longitude;
@@ -520,7 +520,7 @@ namespace novatel_oem7_driver
         // switching of velocity sources is not recommended.
         // Ref: https://docs.novatel.com/OEM7/Content/PDFs/OEM7_SPAN_Installation_Operation_Manual.pdf, pp 80
 
-        if(bestvel_->header.stamp.sec == 0 || prefer_INS)
+        if(!bestvel_->header.stamp.sec || prefer_INS)
         {
           // Compute track and horizontal speed from north and east velocities
 
@@ -572,7 +572,7 @@ namespace novatel_oem7_driver
 
     void publishNavSatFix()
     {
-      if(gpsfix_->header.stamp.sec == 0 || bestpos_->header.stamp.sec == 0) {
+      if(!gpsfix_->header.stamp.sec || !bestpos_->header.stamp.sec) {
         // BESTPOS is needed for service status and undulation
         return;
       }
