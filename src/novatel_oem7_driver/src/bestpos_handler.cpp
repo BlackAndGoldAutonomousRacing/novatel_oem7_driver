@@ -261,11 +261,7 @@ namespace novatel_oem7_driver
 
     std::shared_ptr<BESTPOS> bestpos_ = std::make_shared<BESTPOS>();
     std::shared_ptr<BESTVEL> bestvel_ = std::make_shared<BESTVEL>();
-    std::shared_ptr<BESTUTM> bestutm_ = std::make_shared<BESTUTM>();
-    std::shared_ptr<BESTGNSSPOS> bestgnsspos_ = std::make_shared<BESTGNSSPOS>();
-    std::shared_ptr<PPPPOS>  ppppos_ = std::make_shared<PPPPOS>();
     std::shared_ptr<GPSFix>  gpsfix_ = std::make_shared<GPSFix>();
-    std::shared_ptr<TRACKSTAT> trackstat_ = std::make_shared<TRACKSTAT>();
 
     Oem7RawMessageIf::ConstPtr psrdop2_;
     INSPVA::SharedPtr inspva_;
@@ -273,12 +269,12 @@ namespace novatel_oem7_driver
 
     int64_t last_bestpos_;
     int64_t last_bestvel_;
-    int64_t last_bestgnsspos_;
+    // int64_t last_bestgnsspos_;
     int64_t last_inspva_;
 
     int32_t bestpos_period_;
     int32_t bestvel_period_;
-    int32_t bestgnsspos_period_;
+    // int32_t bestgnsspos_period_;
     int32_t inspva_period_;
 
     bool position_source_BESTPOS_; //< User override: always use BESTPOS
@@ -291,7 +287,7 @@ namespace novatel_oem7_driver
     {
       return period <= bestpos_period_ &&
              period <= bestvel_period_ &&
-             period <= bestgnsspos_period_ &&
+             //period <= bestgnsspos_period_ &&
              period <= inspva_period_;
     }
 
@@ -339,26 +335,30 @@ namespace novatel_oem7_driver
 
     void publishBESTUTM(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *bestutm_);
-      BESTUTM_pub_->publish(bestutm_);
+      auto bestutm = std::make_unique<BESTUTM>();
+      MakeROSMessage(msg, *bestutm);
+      BESTUTM_pub_->publish(std::move(bestutm));
     }
 
     void publishBESTGNSSPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *bestgnsspos_);
-      BESTGNSSPOS_pub_->publish(bestgnsspos_);
+      auto bestgnsspos = std::make_unique<BESTGNSSPOS>();
+      MakeROSMessage(msg, *bestgnsspos);
+      BESTGNSSPOS_pub_->publish(std::move(bestgnsspos));
     }
 
     void publishTRACKSTAT(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *trackstat_);
-      TRACKSTAT_pub_->publish(trackstat_);
+      auto trackstat = std::make_unique<TRACKSTAT>();
+      MakeROSMessage(msg, *trackstat);
+      TRACKSTAT_pub_->publish(std::move(trackstat));
     }
 
     void publishPPPPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *ppppos_);
-      PPPPOS_pub_->publish(ppppos_);
+      auto ppppos = std::make_unique<PPPPOS>();
+      MakeROSMessage(msg, *ppppos);
+      PPPPOS_pub_->publish(std::move(ppppos));
     }
 
     void processPositionAndPublishGPSFix()
@@ -417,11 +417,11 @@ namespace novatel_oem7_driver
 
         if(bestvel_->vel_type.type == novatel_oem7_msgs::msg::PositionOrVelocityType::DOPPLER_VELOCITY)
         {
-          gpsfix_->status.motion_source |= GPSStatus::SOURCE_DOPPLER;
+          gpsfix_->status.motion_source = GPSStatus::SOURCE_DOPPLER;
         }
         else
         {
-          gpsfix_->status.motion_source |= GPSStatus::SOURCE_POINTS;
+          gpsfix_->status.motion_source = GPSStatus::SOURCE_POINTS;
         }
       }
 
@@ -433,17 +433,12 @@ namespace novatel_oem7_driver
         //gpsfix->dip: not populated.
 
         // BESTPOS/BESTVEL take INS into account
-        gpsfix_->status.position_source   |= (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
         gpsfix_->status.orientation_source = (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
-        gpsfix_->status.motion_source =      (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
 
         // Use most recent timestamp
         gpsfix_->time = MakeGpsTime_Seconds(
                           inspva_->nov_header.gps_week_number,
                           inspva_->nov_header.gps_week_milliseconds);
-
-
-
 
         // For normal installations, INSPVA messages are sent at much higher rate than BESTPOS/BESTVEL.
         // More recent INSPVAS are preferred, unless they report inferior accuracy.
@@ -520,22 +515,29 @@ namespace novatel_oem7_driver
           }
         }
 
+        /*
+        // Considering different reference frames of the GNSS vs INS velocities,
+        // switching of velocity sources is not recommended.
+        // Ref: https://docs.novatel.com/OEM7/Content/PDFs/OEM7_SPAN_Installation_Operation_Manual.pdf, pp 80
+
         if(bestvel_->header.stamp.sec == 0 || prefer_INS)
         {
-           // Compute track and horizontal speed from north and east velocities
+          // Compute track and horizontal speed from north and east velocities
 
-           gpsfix_->track = radiansToDegrees(
-                               atan2(inspva_->north_velocity, inspva_->east_velocity));
-           if(gpsfix_->track < 0.0)
-           {
-             gpsfix_->track + 360.0;
-           }
+          gpsfix_->track = radiansToDegrees(
+                              atan2(inspva_->north_velocity, inspva_->east_velocity));
+          if(gpsfix_->track < 0.0)
+          {
+            gpsfix_->track + 360.0;
+          }
 
-           gpsfix_->speed = std::sqrt(std::pow(inspva_->north_velocity, 2.0) +
-                                      std::pow(inspva_->east_velocity,  2.0));
+          gpsfix_->speed = std::sqrt(std::pow(inspva_->north_velocity, 2.0) +
+                                    std::pow(inspva_->east_velocity,  2.0));
 
-           gpsfix_->climb = inspva_->up_velocity;
+          gpsfix_->climb = inspva_->up_velocity;
+          gpsfix_->status.motion_source = (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
         }
+        */
 
       } // if(inspva_)
 
@@ -739,7 +741,7 @@ namespace novatel_oem7_driver
       last_inspva_(0),
       bestpos_period_(std::numeric_limits<int32_t>::max()),
       bestvel_period_(std::numeric_limits<int32_t>::max()),
-      bestgnsspos_period_(std::numeric_limits<int32_t>::max()),
+      //bestgnsspos_period_(std::numeric_limits<int32_t>::max()),
       inspva_period_( std::numeric_limits<int32_t>::max()),
       position_source_BESTPOS_(false),
       position_source_INS_(false)
@@ -822,7 +824,7 @@ namespace novatel_oem7_driver
                         "BESTPOS < [id=" << msg->getMessageId() << "] periods (BP BV BGP PVA):" <<
                         bestpos_period_ << " " <<
                         bestvel_period_ << " " <<
-                        bestgnsspos_period_ << " " <<
+                        //bestgnsspos_period_ << " " <<
                         inspva_period_);
 
       // It is assumed all the messages are logged at reasonable rates.
