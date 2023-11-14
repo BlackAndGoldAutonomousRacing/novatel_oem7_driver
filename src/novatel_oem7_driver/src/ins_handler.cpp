@@ -258,7 +258,9 @@ namespace novatel_oem7_driver
                                                                 inspva.east_velocity,
                                                                 inspva.north_velocity,
                                                                 inspva.up_velocity));
-      tf2::convert(local_linear_velocity, twist_w_cov_.twist.twist.linear);
+      twist_w_cov_.twist.twist.linear.x = local_linear_velocity.x();
+      twist_w_cov_.twist.twist.linear.y = local_linear_velocity.y();
+      twist_w_cov_.twist.twist.linear.z = local_linear_velocity.z();
       if(inspvax_)
       {
         auto local_linear_vel_cov = rotateCovMatrix(local_to_enu_rotation,
