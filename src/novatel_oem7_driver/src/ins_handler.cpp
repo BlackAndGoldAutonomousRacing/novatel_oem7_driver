@@ -186,7 +186,6 @@ namespace novatel_oem7_driver
     {
       auto insconfig = std::make_unique<INSCONFIG>();
       MakeROSMessage(msg, *insconfig);
-      insconfig_pub_->publish(std::move(insconfig));
 
       const oem7_imu_type_t imu_type = static_cast<oem7_imu_type_t>(insconfig->imu_type);
 
@@ -221,6 +220,8 @@ namespace novatel_oem7_driver
           return;
         }
       }
+
+      insconfig_pub_->publish(std::move(insconfig));
 
       RCLCPP_INFO_STREAM(node_->get_logger(),
                          "IMU: "          << imu_type  << " '"  << imu_desc << "' "
