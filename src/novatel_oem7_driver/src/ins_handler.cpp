@@ -41,7 +41,9 @@
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 
 #include "novatel_oem7_msgs/msg/corrimu.hpp"
+#include "novatel_oem7_msgs/msg/heading2.hpp"
 #include "novatel_oem7_msgs/msg/imuratecorrimu.hpp"
+#include "novatel_oem7_msgs/msg/inertial_solution_status.hpp"
 #include "novatel_oem7_msgs/msg/insconfig.hpp"
 #include "novatel_oem7_msgs/msg/inspva.hpp"
 #include "novatel_oem7_msgs/msg/inspvax.hpp"
@@ -100,7 +102,10 @@ namespace novatel_oem7_driver
     std::unique_ptr<Oem7RosPublisher<INSPVAX>>                inspvax_pub_;
     std::unique_ptr<Oem7RosPublisher<INSCONFIG>>              insconfig_pub_;
 
-    std::shared_ptr<INSPVAX>  inspvax_ = std::make_shared<INSPVAX>();
+    rclcpp::Subscription<HEADING2>::SharedPtr    align_sub_;
+
+    std::shared_ptr<HEADING2> align_sol_;
+    INSPVAX  inspvax_;
 
     bool inspva_present_;
     tf2::Transform enu_to_local_rotation_;
@@ -232,9 +237,21 @@ namespace novatel_oem7_driver
 
     void updateEnuOrientation(const INSPVA& inspva)
     {
+      double pitch, azimuth;
       // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
       static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
-      double azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+
+      if (align_sol_ && inspva.status.status != InertialSolutionStatus::INS_SOLUTION_GOOD &&
+          inspva.status.status != InertialSolutionStatus::INS_SOLUTION_FREE &&
+          inspva.status.status != InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
+        // INS initial alignment is incomplete. Substitute orientation with
+        // the one obtained from (post-offset) HEADING2 instead.
+        pitch = align_sol_->pitch;
+        azimuth = align_sol_->heading - ZERO_DEGREES_AZIMUTH_OFFSET;
+      } else {
+        pitch = inspva.pitch;
+        azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+      }
 
       // Conversion to quaternion addresses rollover.
       // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
@@ -261,12 +278,12 @@ namespace novatel_oem7_driver
       twist_w_cov_.twist.twist.linear.x = local_linear_velocity.x();
       twist_w_cov_.twist.twist.linear.y = local_linear_velocity.y();
       twist_w_cov_.twist.twist.linear.z = local_linear_velocity.z();
-      if(inspvax_)
+      if(inspvax_.header.stamp.sec)
       {
         auto local_linear_vel_cov = rotateCovMatrix(local_to_enu_rotation,
-                                            {std::pow(inspvax_->east_velocity_stdev, 2), 0., 0.,
-                                             0., std::pow(inspvax_->north_velocity_stdev, 2), 0.,
-                                             0., 0., std::pow(inspvax_->up_velocity_stdev, 2)});
+                                            {std::pow(inspvax_.east_velocity_stdev, 2), 0., 0.,
+                                             0., std::pow(inspvax_.north_velocity_stdev, 2), 0.,
+                                             0., 0., std::pow(inspvax_.up_velocity_stdev, 2)});
         twist_w_cov_.twist.covariance[ 0] = local_linear_vel_cov[0][0];
         twist_w_cov_.twist.covariance[ 1] = local_linear_vel_cov[0][1];
         twist_w_cov_.twist.covariance[ 2] = local_linear_vel_cov[0][2];
@@ -293,7 +310,7 @@ namespace novatel_oem7_driver
 
     void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, *inspvax_);
+      MakeROSMessage(msg, inspvax_);
       inspvax_pub_->publish(inspvax_);
     }
 
@@ -328,11 +345,11 @@ namespace novatel_oem7_driver
         twist_w_cov_.twist.twist.angular = imu->angular_velocity;
       }
 
-      if(inspvax_->header.stamp.sec)
+      if(inspvax_.header.stamp.sec)
       {
-        imu->orientation_covariance[0] = std::pow(inspvax_->pitch_stdev,   2);
-        imu->orientation_covariance[4] = std::pow(inspvax_->roll_stdev,    2);
-        imu->orientation_covariance[8] = std::pow(inspvax_->azimuth_stdev, 2);
+        imu->orientation_covariance[0] = std::pow(inspvax_.pitch_stdev,   2);
+        imu->orientation_covariance[4] = std::pow(inspvax_.roll_stdev,    2);
+        imu->orientation_covariance[8] = std::pow(inspvax_.azimuth_stdev, 2);
       }
 
       // TODO hard-coded for now. Should be set in the oem7_imu.cpp as product-specific values.
@@ -414,6 +431,13 @@ namespace novatel_oem7_driver
       raw_imu_pub_->publish(std::move(imu));
     }
 
+    std::string topic(const std::string& publisher)
+    {
+      std::string topic;
+      node_->get_parameter(publisher + ".topic", topic);
+      return std::string(node_->get_namespace()) + 
+                        (node_->get_namespace() == std::string("/") ? topic : "/" + topic);
+    }
 
   public:
     INSHandler():
@@ -451,6 +475,12 @@ namespace novatel_oem7_driver
 
       init_raw_calibration_lin_ = node_->declare_parameter<bool>("ins_raw_static_init_linear_calib", false);
       init_raw_calibration_ang_ = node_->declare_parameter<bool>("ins_raw_static_init_angular_calib", false);
+
+      align_sub_  = node.create_subscription<HEADING2>( topic("HEADING2"),  10,
+        [&](const HEADING2::SharedPtr msg){
+          align_sol_ = msg;
+        }
+      );
     }
 
     const MessageIdRecords& getMessageIds()

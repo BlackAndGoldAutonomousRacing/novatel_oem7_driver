@@ -328,6 +328,13 @@ namespace novatel_oem7_driver
       }
     }
 
+    std::string topic(const std::string& publisher)
+    {
+      std::string topic;
+      node_->get_parameter(publisher + ".topic", topic);
+      return std::string(node_->get_namespace()) + 
+                        (node_->get_namespace() == std::string("/") ? topic : "/" + topic);
+    }
 
   public:
     OdometryHandler():
@@ -364,15 +371,6 @@ namespace novatel_oem7_driver
       imu_present_ = true;
 
       publishOdometry(imu.get());
-    }
-
-
-    std::string topic(const std::string& publisher)
-    {
-      std::string topic;
-      node_->get_parameter(publisher + ".topic", topic);
-      return std::string(node_->get_namespace()) + 
-                        (node_->get_namespace() == std::string("/") ? topic : "/" + topic);
     }
 
     void initialize(rclcpp::Node& node)
