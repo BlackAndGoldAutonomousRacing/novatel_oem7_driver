@@ -94,7 +94,7 @@ namespace
                             covIn[3], covIn[4], covIn[5],
                             covIn[6], covIn[7], covIn[8]);
     tf2::Matrix3x3 tfRot = tf.getBasis();
-    return tfRot * covMat * tfRot.transpose();
+    return tfRot * covMat * (tfRot.transpose());
   }
 }
 

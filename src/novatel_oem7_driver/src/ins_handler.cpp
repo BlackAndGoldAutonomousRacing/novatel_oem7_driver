@@ -76,7 +76,7 @@ namespace
                             covIn[3], covIn[4], covIn[5],
                             covIn[6], covIn[7], covIn[8]);
     tf2::Matrix3x3 tfRot = tf.getBasis();
-    return tfRot * covMat * tfRot.transpose();
+    return tfRot * covMat * (tfRot.transpose());
   }
 
   const double DATA_NOT_AVAILABLE = -1.0; ///< Used to initialized unpopulated fields.
@@ -233,16 +233,15 @@ namespace novatel_oem7_driver
     void updateEnuOrientation(const INSPVA& inspva)
     {
       // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
-      // static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
-      // double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+      static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
+      double azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
 
       // Conversion to quaternion addresses rollover.
       // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
       tf2::Quaternion orientation;
       orientation.setRPY(degreesToRadians(inspva.roll),
                         -degreesToRadians(inspva.pitch),
-                        // -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
-                        -degreesToRadians(inspva.azimuth));
+                        -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
 
       enu_to_local_rotation_.setRotation(orientation);
     }
