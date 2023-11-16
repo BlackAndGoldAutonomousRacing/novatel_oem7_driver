@@ -93,8 +93,14 @@ namespace
     tf2::Matrix3x3 covMat(covIn[0], covIn[1], covIn[2],
                             covIn[3], covIn[4], covIn[5],
                             covIn[6], covIn[7], covIn[8]);
-    tf2::Matrix3x3 tfRot = tf.getBasis();
-    return tfRot * covMat * (tfRot.transpose());
+    tf2::Quaternion q = tf.getRotation().normalized();
+    if (!std::isnan(q.w())){
+      return covMat;
+    } else {
+      tf2::Matrix3x3 tfRot = tf.getBasis();
+      covMat = tfRot * covMat * (tfRot.transpose());
+    }
+    return covMat;
   }
 }
 
@@ -272,13 +278,13 @@ namespace novatel_oem7_driver
         auto angular_vel_cov_rot = rotateCovMatrix(local_tf_inv, imu->angular_velocity_covariance);
 
         odometry_.twist.covariance[21] = angular_vel_cov_rot[0][0];
-        odometry_.twist.covariance[22] = angular_vel_cov_rot[0][1];
-        odometry_.twist.covariance[23] = angular_vel_cov_rot[0][2];
-        odometry_.twist.covariance[27] = angular_vel_cov_rot[1][0];
+        //odometry_.twist.covariance[22] = angular_vel_cov_rot[0][1];
+        //odometry_.twist.covariance[23] = angular_vel_cov_rot[0][2];
+        //odometry_.twist.covariance[27] = angular_vel_cov_rot[1][0];
         odometry_.twist.covariance[28] = angular_vel_cov_rot[1][1];
-        odometry_.twist.covariance[29] = angular_vel_cov_rot[1][2];
-        odometry_.twist.covariance[33] = angular_vel_cov_rot[2][0];
-        odometry_.twist.covariance[34] = angular_vel_cov_rot[2][1];
+        //odometry_.twist.covariance[29] = angular_vel_cov_rot[1][2];
+        //odometry_.twist.covariance[33] = angular_vel_cov_rot[2][0];
+        //odometry_.twist.covariance[34] = angular_vel_cov_rot[2][1];
         odometry_.twist.covariance[35] = angular_vel_cov_rot[2][2];
 
         // Linear velocity in local ENU
@@ -297,13 +303,13 @@ namespace novatel_oem7_driver
         const auto linear_vel_cov_rot = rotateCovMatrix(local_tf_inv,
                                                       {0.25, 0., 0., 0., 0.25, 0., 0., 0., 0.25});
         odometry_.twist.covariance[0] = linear_vel_cov_rot[0][0];
-        odometry_.twist.covariance[1] = linear_vel_cov_rot[0][1];
-        odometry_.twist.covariance[2] = linear_vel_cov_rot[0][2];
-        odometry_.twist.covariance[6] = linear_vel_cov_rot[1][0];
+        //odometry_.twist.covariance[1] = linear_vel_cov_rot[0][1];
+        //odometry_.twist.covariance[2] = linear_vel_cov_rot[0][2];
+        //odometry_.twist.covariance[6] = linear_vel_cov_rot[1][0];
         odometry_.twist.covariance[7] = linear_vel_cov_rot[1][1];
-        odometry_.twist.covariance[8] = linear_vel_cov_rot[1][2];
-        odometry_.twist.covariance[12] = linear_vel_cov_rot[2][0];
-        odometry_.twist.covariance[13] = linear_vel_cov_rot[2][1];
+        //odometry_.twist.covariance[8] = linear_vel_cov_rot[1][2];
+        //odometry_.twist.covariance[12] = linear_vel_cov_rot[2][0];
+        //odometry_.twist.covariance[13] = linear_vel_cov_rot[2][1];
         odometry_.twist.covariance[14] = linear_vel_cov_rot[2][2];
       }
 

@@ -68,7 +68,7 @@ namespace
 
   /**
    * @brief Rotates a 3x3 covariance matrix
-   * 
+   *
    * @return rotated cov matrix in tf2::Matrix3x3 form.
    */
   inline tf2::Matrix3x3 rotateCovMatrix(const tf2::Transform& tf,
@@ -77,8 +77,14 @@ namespace
     tf2::Matrix3x3 covMat(covIn[0], covIn[1], covIn[2],
                             covIn[3], covIn[4], covIn[5],
                             covIn[6], covIn[7], covIn[8]);
-    tf2::Matrix3x3 tfRot = tf.getBasis();
-    return tfRot * covMat * (tfRot.transpose());
+    tf2::Quaternion q = tf.getRotation().normalized();
+    if (!std::isnan(q.w())){
+      return covMat;
+    } else {
+      tf2::Matrix3x3 tfRot = tf.getBasis();
+      covMat = tfRot * covMat * (tfRot.transpose());
+    }
+    return covMat;
   }
 
   const double DATA_NOT_AVAILABLE = -1.0; ///< Used to initialized unpopulated fields.
@@ -163,7 +169,7 @@ namespace novatel_oem7_driver
             [](std::vector<double> &x, std::vector<double> &y){
               std::vector<double> result;
               result.reserve(x.size());
-              std::transform(x.begin(), x.end(), y.begin(), 
+              std::transform(x.begin(), x.end(), y.begin(),
                    std::back_inserter(result), std::plus<double>());
               return result;
             }
@@ -249,9 +255,10 @@ namespace novatel_oem7_driver
         pitch = -align_sol_->pitch;
         azimuth = ZERO_DEGREES_AZIMUTH_OFFSET - align_sol_->heading;
       } else {
+        // a converging solution
         pitch = -inspva.pitch;
         //azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
-        azimuth = -inspva.azimuth
+        azimuth = -inspva.azimuth;
       }
 
       // Conversion to quaternion addresses rollover.
@@ -286,13 +293,13 @@ namespace novatel_oem7_driver
                                              0., std::pow(inspvax_.north_velocity_stdev, 2), 0.,
                                              0., 0., std::pow(inspvax_.up_velocity_stdev, 2)});
         twist_w_cov_.twist.covariance[ 0] = local_linear_vel_cov[0][0];
-        twist_w_cov_.twist.covariance[ 1] = local_linear_vel_cov[0][1];
-        twist_w_cov_.twist.covariance[ 2] = local_linear_vel_cov[0][2];
-        twist_w_cov_.twist.covariance[ 6] = local_linear_vel_cov[1][0];
+        //twist_w_cov_.twist.covariance[ 1] = local_linear_vel_cov[0][1];
+        //twist_w_cov_.twist.covariance[ 2] = local_linear_vel_cov[0][2];
+        //twist_w_cov_.twist.covariance[ 6] = local_linear_vel_cov[1][0];
         twist_w_cov_.twist.covariance[ 7] = local_linear_vel_cov[1][1];
-        twist_w_cov_.twist.covariance[ 8] = local_linear_vel_cov[1][2];
-        twist_w_cov_.twist.covariance[12] = local_linear_vel_cov[2][0];
-        twist_w_cov_.twist.covariance[13] = local_linear_vel_cov[2][1];
+        //twist_w_cov_.twist.covariance[ 8] = local_linear_vel_cov[1][2];
+        //twist_w_cov_.twist.covariance[12] = local_linear_vel_cov[2][0];
+        //twist_w_cov_.twist.covariance[13] = local_linear_vel_cov[2][1];
         twist_w_cov_.twist.covariance[14] = local_linear_vel_cov[2][2];
       }
 
@@ -436,7 +443,7 @@ namespace novatel_oem7_driver
     {
       std::string topic;
       node_->get_parameter(publisher + ".topic", topic);
-      return std::string(node_->get_namespace()) + 
+      return std::string(node_->get_namespace()) +
                         (node_->get_namespace() == std::string("/") ? topic : "/" + topic);
     }
 
