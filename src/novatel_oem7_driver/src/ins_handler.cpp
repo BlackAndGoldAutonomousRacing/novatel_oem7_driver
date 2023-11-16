@@ -246,19 +246,20 @@ namespace novatel_oem7_driver
           inspva.status.status != InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
         // INS initial alignment is incomplete. Substitute orientation with
         // the one obtained from (post-offset) HEADING2 instead.
-        pitch = align_sol_->pitch;
-        azimuth = align_sol_->heading - ZERO_DEGREES_AZIMUTH_OFFSET;
+        pitch = -align_sol_->pitch;
+        azimuth = ZERO_DEGREES_AZIMUTH_OFFSET - align_sol_->heading;
       } else {
-        pitch = inspva.pitch;
-        azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+        pitch = -inspva.pitch;
+        //azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
+        azimuth = -inspva.azimuth
       }
 
       // Conversion to quaternion addresses rollover.
       // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
       tf2::Quaternion orientation;
       orientation.setRPY(degreesToRadians(inspva.roll),
-                        -degreesToRadians(inspva.pitch),
-                        -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
+                         degreesToRadians(inspva.pitch),
+                         degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
 
       enu_to_local_rotation_.setRotation(orientation);
     }
