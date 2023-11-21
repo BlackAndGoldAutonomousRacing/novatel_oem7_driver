@@ -75,8 +75,10 @@ This driver assumes `SETINSROTATION RBV 0 0 0 * * *`, `SETINSROTATION USER 0 0 0
 
 The driver outputs all processed ROS messages in the following frame:
 - ROS: X - Forward, Y - Left, Z - Up. Orientation origin: Upright, X facing East.
+
 The ROS frame is equivalent to rotating RAWIMU by +90 degrees along its Z axis.
 
+Parameters:
 * **oem7_position_source**: string.
   Oem7 log used to obtain the position for GPSFix, NavSatFix, Odometry.
 
