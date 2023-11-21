@@ -274,7 +274,10 @@ namespace novatel_oem7_driver
         // angular velocity in local ENU
         tf2::Vector3 angular_velocity;
         tf2::fromMsg(imu->angular_velocity, angular_velocity);
-        tf2::convert(local_tf_inv(angular_velocity), odometry_.twist.twist.angular);
+        angular_velocity = local_tf_inv(angular_velocity);
+        odometry_.twist.twist.angular.x = angular_velocity.x();
+        odometry_.twist.twist.angular.y = angular_velocity.y();
+        odometry_.twist.twist.angular.z = angular_velocity.z();
         auto angular_vel_cov_rot = rotateCovMatrix(local_tf_inv, imu->angular_velocity_covariance);
 
         odometry_.twist.covariance[21] = angular_vel_cov_rot[0][0];
@@ -296,6 +299,9 @@ namespace novatel_oem7_driver
                                                                   gpsfix_->speed * sin_trk,
                                                                   gpsfix_->speed * cos_trk,
                                                                   gpsfix_->climb));
+        odometry_.twist.twist.linear.x = local_linear_velocity.x();
+        odometry_.twist.twist.linear.y = local_linear_velocity.y();
+        odometry_.twist.twist.linear.z = local_linear_velocity.z();
 
         // Use speed in gpsfix_. The speed is calculated from Doppler frequency shift.
         // A typical static stdev can be taken as 0.5m/s.

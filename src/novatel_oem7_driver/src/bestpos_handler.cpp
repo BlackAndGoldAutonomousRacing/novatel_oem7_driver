@@ -404,6 +404,7 @@ namespace novatel_oem7_driver
 
       if(bestvel_->header.stamp.sec)
       {
+        // FIXME: this does not get through.
         gpsfix_->track = bestvel_->trk_gnd;
         gpsfix_->speed = bestvel_->hor_speed;
         gpsfix_->climb = bestvel_->ver_speed;

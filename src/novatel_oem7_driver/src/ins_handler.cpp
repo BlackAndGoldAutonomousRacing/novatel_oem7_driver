@@ -44,6 +44,7 @@
 #include "novatel_oem7_msgs/msg/heading2.hpp"
 #include "novatel_oem7_msgs/msg/imuratecorrimu.hpp"
 #include "novatel_oem7_msgs/msg/inertial_solution_status.hpp"
+#include "novatel_oem7_msgs/msg/solution_status.hpp"
 #include "novatel_oem7_msgs/msg/insconfig.hpp"
 #include "novatel_oem7_msgs/msg/inspva.hpp"
 #include "novatel_oem7_msgs/msg/inspvax.hpp"
@@ -215,9 +216,6 @@ namespace novatel_oem7_driver
         return;
       }
 
-      // imu_raw_accel_scale_factor_ = getImuLinearScale(imu_type);
-      // imu_raw_gyro_scale_factor_ = getImuAngularScale(imu_type);
-
       if(imu_raw_gyro_scale_factor_  == 0.0 ||
          imu_raw_accel_scale_factor_ == 0.0) // No override, this is normal.
       {
@@ -241,32 +239,58 @@ namespace novatel_oem7_driver
                       << "accel scale= "  << imu_raw_accel_scale_factor_);
     }
 
+    void publishInsPVAMsg(const Oem7RawMessageIf::ConstPtr& msg)
+    {
+      auto inspva = std::make_unique<INSPVA>();
+      MakeROSMessage(msg, *inspva);
+      updateEnuOrientation(*inspva);
+      inspva_present_ = true;
+      publishInsTwistMsg(*inspva);
+      inspva_pub_->publish(std::move(inspva));
+    }
+
+    void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
+    {
+      MakeROSMessage(msg, inspvax_);
+      inspvax_pub_->publish(inspvax_);
+    }
+
+    void publishCorrImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
+    {
+      auto corrimu = std::make_unique<CORRIMU>();
+      MakeROSMessage(msg, *corrimu);
+      publishImuMsg(*corrimu);
+      corrimu_pub_->publish(std::move(corrimu));
+    }
+
     void updateEnuOrientation(const INSPVA& inspva)
     {
-      double pitch, azimuth;
-      // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
+      static double pitch = 0., azimuth = 0.;
+      // Azimuth: Oem7 (North=0) to ROS (East=0)
       static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
 
-      if (align_sol_ && inspva.status.status != InertialSolutionStatus::INS_SOLUTION_GOOD &&
-          inspva.status.status != InertialSolutionStatus::INS_SOLUTION_FREE &&
-          inspva.status.status != InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
+      if (inspva.status.status == InertialSolutionStatus::INS_SOLUTION_GOOD ||
+          inspva.status.status == InertialSolutionStatus::INS_SOLUTION_FREE ||
+          inspva.status.status == InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
+        // a converging solution, use INSPVA solution. Need to convert INSPVA frame to ROS frame
+        pitch = inspva.roll;        // INSPVA frame: left/front/down
+        azimuth = -inspva.azimuth;  // INSPVA has x: ROS East = INSPVA North = 0, z: CW positive
+        // FIXME: NEED TO DOUBLE-CHECK SETINSROTATION USER 0 0 0 1.0 1.0 1.0
+        // (i.e. use Novatel Vehicle frame)
+      } else if (align_sol_ && align_sol_->sol_status.status == SolutionStatus::SOL_COMPUTED) {
         // INS initial alignment is incomplete. Substitute orientation with
         // the one obtained from (post-offset) HEADING2 instead.
-        pitch = -align_sol_->pitch;
-        azimuth = ZERO_DEGREES_AZIMUTH_OFFSET - align_sol_->heading;
-      } else {
-        // a converging solution
-        pitch = -inspva.pitch;
-        //azimuth = inspva.azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
-        azimuth = -inspva.azimuth;
+        pitch = -align_sol_->pitch;                                   // ALIGN has pitch UP positive
+        azimuth = ZERO_DEGREES_AZIMUTH_OFFSET - align_sol_->heading;  // ALIGN has North=0, CW positive
+        // TODO: call initialization command service
       }
 
       // Conversion to quaternion addresses rollover.
-      // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
+      // Pitch and azimuth are adjusted from Y-forward, RH to X-forward, RH.
       tf2::Quaternion orientation;
-      orientation.setRPY(degreesToRadians(inspva.roll),
-                         degreesToRadians(inspva.pitch),
-                         degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
+      orientation.setRPY(degreesToRadians(inspva.pitch),  // roll is INSPVA pitch (INS is Y forward)
+                         degreesToRadians(pitch),
+                         degreesToRadians(azimuth));      // East=0, CCW positive
 
       enu_to_local_rotation_.setRotation(orientation);
     }
@@ -306,30 +330,6 @@ namespace novatel_oem7_driver
       ins_vel_pub_->publish(twist_w_cov_);
     }
 
-    void publishInsPVAMsg(const Oem7RawMessageIf::ConstPtr& msg)
-    {
-      auto inspva = std::make_unique<INSPVA>();
-      MakeROSMessage(msg, *inspva);
-      updateEnuOrientation(*inspva);
-      inspva_present_ = true;
-      publishInsTwistMsg(*inspva);
-      inspva_pub_->publish(std::move(inspva));
-    }
-
-    void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
-    {
-      MakeROSMessage(msg, inspvax_);
-      inspvax_pub_->publish(inspvax_);
-    }
-
-    void publishCorrImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
-    {
-      auto corrimu = std::make_unique<CORRIMU>();
-      MakeROSMessage(msg, *corrimu);
-      publishImuMsg(*corrimu);
-      corrimu_pub_->publish(std::move(corrimu));
-    }
-
     void publishImuMsg(const CORRIMU& corrimu)
     {
       if(!imu_pub_->isEnabled() || !inspva_present_ || imu_rate_ == 0)
@@ -342,12 +342,13 @@ namespace novatel_oem7_driver
       {
         double instantaneous_rate_factor = imu_rate_ / corrimu.imu_data_count;
 
-        imu->angular_velocity.x = corrimu.roll_rate  * instantaneous_rate_factor;
-        imu->angular_velocity.y = corrimu.pitch_rate * instantaneous_rate_factor;
+        // CORRIMU frame: left/front/up (left-handed). Convert to front/left/up (right-handed)
+        imu->angular_velocity.x = corrimu.pitch_rate * instantaneous_rate_factor;
+        imu->angular_velocity.y = corrimu.roll_rate  * instantaneous_rate_factor;
         imu->angular_velocity.z = corrimu.yaw_rate   * instantaneous_rate_factor;
 
-        imu->linear_acceleration.x = corrimu.longitudinal_acc * instantaneous_rate_factor;
-        imu->linear_acceleration.y = corrimu.lateral_acc      * instantaneous_rate_factor;
+        imu->linear_acceleration.x = corrimu.lateral_acc      * instantaneous_rate_factor;
+        imu->linear_acceleration.y = corrimu.longitudinal_acc * instantaneous_rate_factor;
         imu->linear_acceleration.z = corrimu.vertical_acc     * instantaneous_rate_factor;
 
         twist_w_cov_.twist.twist.angular = imu->angular_velocity;
