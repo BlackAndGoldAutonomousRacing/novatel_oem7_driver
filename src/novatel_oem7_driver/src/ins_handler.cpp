@@ -296,7 +296,8 @@ namespace novatel_oem7_driver
                         std::to_string(align_sol_->heading_stdev);
           auto result = oem7CmdCli_->async_send_request(std::move(request));
           // Wait for the result.
-          auto shared_node = std::make_shared<rclcpp::Node>(node_);
+          std::shared_ptr<rclcpp::Node> shared_node;
+          shared_node.reset(node_);
           if (rclcpp::spin_until_future_complete(shared_node, result) ==
               rclcpp::FutureReturnCode::SUCCESS)
             last_init_ins_from_heading2 = init_timestamp;
