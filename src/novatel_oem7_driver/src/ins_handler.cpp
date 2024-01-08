@@ -286,19 +286,22 @@ namespace novatel_oem7_driver
         pitch = -align_sol_->pitch;                                   // ALIGN has pitch UP positive
         azimuth = ZERO_DEGREES_AZIMUTH_OFFSET - align_sol_->heading;  // ALIGN has North=0, CW positive
         // call initialization command service
-        static unsigned long last_init_ins_from_heading2 = 0;
-        unsigned long init_timestamp = node_->now().nanoseconds();
-        // TODO: hard-coded: re-init no more frequently than once every two seconds
-        if (init_timestamp - last_init_ins_from_heading2 > 2000000000UL) {
-          auto request = std::make_unique<novatel_oem7_msgs::srv::Oem7AbasciiCmd::Request>();
-          request->cmd = "SETINITAZIMUTH " +
-                        std::to_string(align_sol_->heading - ZERO_DEGREES_AZIMUTH_OFFSET) + " " +
-                        std::to_string(align_sol_->heading_stdev);
-          auto result = oem7CmdCli_->async_send_request(std::move(request));
-          // Wait for the result.
-          if (rclcpp::spin_until_future_complete(node_->get_node_base_interface(), result) ==
-              rclcpp::FutureReturnCode::SUCCESS)
-            last_init_ins_from_heading2 = init_timestamp;
+        // Wait for the ASCII config interface service to be activated
+        if (oem7CmdCli_->wait_for_service(std::chrono::seconds(1))) {
+          static unsigned long last_init_ins_from_heading2 = 0;
+          unsigned long init_timestamp = node_->now().nanoseconds();
+          // TODO: hard-coded: re-init no more frequently than once every two seconds
+          if (init_timestamp - last_init_ins_from_heading2 > 2000000000UL) {
+            auto request = std::make_unique<novatel_oem7_msgs::srv::Oem7AbasciiCmd::Request>();
+            request->cmd = "SETINITAZIMUTH " +
+                          std::to_string(align_sol_->heading - ZERO_DEGREES_AZIMUTH_OFFSET) + " " +
+                          std::to_string(align_sol_->heading_stdev);
+            auto result = oem7CmdCli_->async_send_request(std::move(request));
+            // Wait for the result.
+            if (rclcpp::spin_until_future_complete(node_->get_node_base_interface(), result) ==
+                rclcpp::FutureReturnCode::SUCCESS)
+              last_init_ins_from_heading2 = init_timestamp;
+          }
         }
       }
 
@@ -511,15 +514,6 @@ namespace novatel_oem7_driver
       static rmw_qos_profile_t qos = rmw_qos_profile_default;
       qos.depth = 20;
       oem7CmdCli_ = node_->create_client<novatel_oem7_msgs::srv::Oem7AbasciiCmd>("Oem7Cmd", qos);
-      // Wait for the ASCII config interface service to be activated
-      while (!oem7CmdCli_->wait_for_service(std::chrono::seconds(1))) {
-        // If ROS is shutdown before the service is activated, show this error
-        if (!rclcpp::ok()) {
-          RCLCPP_ERROR(node_->get_logger(),
-            "Interrupted while waiting for ASCII command interface service (Oem7Cmd). Exiting.");
-          return;
-        }
-      }
     }
 
     const MessageIdRecords& getMessageIds()
