@@ -199,10 +199,10 @@ namespace novatel_oem7_driver
 
     void processInsConfigMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto insconfig = std::make_unique<INSCONFIG>();
-      MakeROSMessage(msg, *insconfig);
+      static INSCONFIG insconfig;
+      MakeROSMessage(msg, insconfig);
 
-      const oem7_imu_type_t imu_type = static_cast<oem7_imu_type_t>(insconfig->imu_type);
+      const oem7_imu_type_t imu_type = static_cast<oem7_imu_type_t>(insconfig.imu_type);
 
       std::string imu_desc;
       getImuDescription(imu_type, imu_desc);
@@ -228,12 +228,12 @@ namespace novatel_oem7_driver
             imu_raw_accel_scale_factor_))
         {
           RCLCPP_ERROR_STREAM(node_->get_logger(),
-            "IMU type= '" << insconfig->imu_type << "'; Scale factors unavilable. Raw IMU output disabled");
+            "IMU type= '" << insconfig.imu_type << "'; Scale factors unavilable. Raw IMU output disabled");
           return;
         }
       }
 
-      insconfig_pub_->publish(std::move(insconfig));
+      insconfig_pub_->publish(insconfig);
 
       RCLCPP_INFO_STREAM(node_->get_logger(),
                          "IMU: "          << imu_type  << " '"  << imu_desc << "' "
@@ -244,12 +244,12 @@ namespace novatel_oem7_driver
 
     void publishInsPVAMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto inspva = std::make_unique<INSPVA>();
-      MakeROSMessage(msg, *inspva);
-      updateEnuOrientation(*inspva);
+      static INSPVA inspva;
+      MakeROSMessage(msg, inspva);
+      updateEnuOrientation(inspva);
       inspva_present_ = true;
-      publishInsTwistMsg(*inspva);
-      inspva_pub_->publish(std::move(inspva));
+      publishInsTwistMsg(inspva);
+      inspva_pub_->publish(inspva);
     }
 
     void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
@@ -260,10 +260,10 @@ namespace novatel_oem7_driver
 
     void publishCorrImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto corrimu = std::make_unique<CORRIMU>();
-      MakeROSMessage(msg, *corrimu);
-      publishImuMsg(*corrimu);
-      corrimu_pub_->publish(std::move(corrimu));
+      static CORRIMU corrimu;
+      MakeROSMessage(msg, corrimu);
+      publishImuMsg(corrimu);
+      corrimu_pub_->publish(corrimu);
     }
 
     void updateEnuOrientation(const INSPVA& inspva)
@@ -292,11 +292,11 @@ namespace novatel_oem7_driver
           unsigned long init_timestamp = node_->now().nanoseconds();
           // TODO: hard-coded: re-init no more frequently than once every two seconds
           if (init_timestamp - last_init_ins_from_heading2 > 2000000000UL) {
-            auto request = std::make_unique<novatel_oem7_msgs::srv::Oem7AbasciiCmd::Request>();
+            auto request = std::make_shared<novatel_oem7_msgs::srv::Oem7AbasciiCmd::Request>();
             request->cmd = "SETINITAZIMUTH " +
                           std::to_string(align_sol_->heading - ZERO_DEGREES_AZIMUTH_OFFSET) + " " +
                           std::to_string(align_sol_->heading_stdev);
-            auto result = oem7CmdCli_->async_send_request(std::move(request));
+            auto result = oem7CmdCli_->async_send_request(request);
             // Wait for the result.
             if (rclcpp::spin_until_future_complete(node_->get_node_base_interface(), result) ==
                 rclcpp::FutureReturnCode::SUCCESS)
@@ -355,30 +355,30 @@ namespace novatel_oem7_driver
       if(!imu_pub_->isEnabled() || !inspva_present_ || imu_rate_ == 0)
         return;
 
-      auto imu = std::make_unique<sensor_msgs::msg::Imu>();
-      imu->orientation = tf2::toMsg(enu_to_local_rotation_.getRotation());
+      static sensor_msgs::msg::Imu imu;
+      imu.orientation = tf2::toMsg(enu_to_local_rotation_.getRotation());
 
       if(corrimu.imu_data_count > 0)
       {
         double instantaneous_rate_factor = imu_rate_ / corrimu.imu_data_count;
 
         // CORRIMU frame: left/front/up (left-handed). Convert to front/left/up (right-handed)
-        imu->angular_velocity.x = corrimu.pitch_rate * instantaneous_rate_factor;
-        imu->angular_velocity.y = corrimu.roll_rate  * instantaneous_rate_factor;
-        imu->angular_velocity.z = corrimu.yaw_rate   * instantaneous_rate_factor;
+        imu.angular_velocity.x = corrimu.pitch_rate * instantaneous_rate_factor;
+        imu.angular_velocity.y = corrimu.roll_rate  * instantaneous_rate_factor;
+        imu.angular_velocity.z = corrimu.yaw_rate   * instantaneous_rate_factor;
 
-        imu->linear_acceleration.x = corrimu.lateral_acc      * instantaneous_rate_factor;
-        imu->linear_acceleration.y = corrimu.longitudinal_acc * instantaneous_rate_factor;
-        imu->linear_acceleration.z = corrimu.vertical_acc     * instantaneous_rate_factor;
+        imu.linear_acceleration.x = corrimu.lateral_acc      * instantaneous_rate_factor;
+        imu.linear_acceleration.y = corrimu.longitudinal_acc * instantaneous_rate_factor;
+        imu.linear_acceleration.z = corrimu.vertical_acc     * instantaneous_rate_factor;
 
-        twist_w_cov_.twist.twist.angular = imu->angular_velocity;
+        twist_w_cov_.twist.twist.angular = imu.angular_velocity;
       }
 
       if(inspvax_.header.stamp.sec)
       {
-        imu->orientation_covariance[0] = std::pow(inspvax_.pitch_stdev,   2);
-        imu->orientation_covariance[4] = std::pow(inspvax_.roll_stdev,    2);
-        imu->orientation_covariance[8] = std::pow(inspvax_.azimuth_stdev, 2);
+        imu.orientation_covariance[0] = std::pow(inspvax_.pitch_stdev,   2);
+        imu.orientation_covariance[4] = std::pow(inspvax_.roll_stdev,    2);
+        imu.orientation_covariance[8] = std::pow(inspvax_.azimuth_stdev, 2);
       }
 
       // TODO hard-coded for now. Should be set in the oem7_imu.cpp as product-specific values.
@@ -388,14 +388,14 @@ namespace novatel_oem7_driver
       // C 0 0
       // 0 C 0
       // 0 0 C
-      imu->angular_velocity_covariance[0] = ANGULAR_COV;
-      imu->angular_velocity_covariance[4] = ANGULAR_COV;
-      imu->angular_velocity_covariance[8] = ANGULAR_COV;
-      imu->linear_acceleration_covariance[0] = LINEAR_COV;
-      imu->linear_acceleration_covariance[4] = LINEAR_COV;
-      imu->linear_acceleration_covariance[8] = LINEAR_COV;
+      imu.angular_velocity_covariance[0] = ANGULAR_COV;
+      imu.angular_velocity_covariance[4] = ANGULAR_COV;
+      imu.angular_velocity_covariance[8] = ANGULAR_COV;
+      imu.linear_acceleration_covariance[0] = LINEAR_COV;
+      imu.linear_acceleration_covariance[4] = LINEAR_COV;
+      imu.linear_acceleration_covariance[8] = LINEAR_COV;
 
-      imu_pub_->publish(std::move(imu));
+      imu_pub_->publish(imu);
 
       twist_w_cov_.twist.covariance[21] = ANGULAR_COV;
       twist_w_cov_.twist.covariance[28] = ANGULAR_COV;
@@ -442,22 +442,22 @@ namespace novatel_oem7_driver
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
       }
 
-      auto imu = std::make_unique<sensor_msgs::msg::Imu>();
+      static sensor_msgs::msg::Imu imu;
       // All measurements are in sensor frame, uncorrected for gravity. There is no up, forward, left;
       // x, y, z are nominal references to enclsoure housing.
-      imu->angular_velocity.x =  computeAngularVelocityFromRaw(raw->x_gyro, bias_raw_imu_rot_[0]);
-      imu->angular_velocity.y = -computeAngularVelocityFromRaw(raw->y_gyro, bias_raw_imu_rot_[1]); // Refer to RAWIMUSX documentation
-      imu->angular_velocity.z =  computeAngularVelocityFromRaw(raw->z_gyro, bias_raw_imu_rot_[2]);
+      imu.angular_velocity.x =  computeAngularVelocityFromRaw(raw->x_gyro, bias_raw_imu_rot_[0]);
+      imu.angular_velocity.y = -computeAngularVelocityFromRaw(raw->y_gyro, bias_raw_imu_rot_[1]); // Refer to RAWIMUSX documentation
+      imu.angular_velocity.z =  computeAngularVelocityFromRaw(raw->z_gyro, bias_raw_imu_rot_[2]);
 
-      imu->linear_acceleration.x =  computeLinearAccelerationFromRaw(raw->x_acc, bias_raw_imu_acc_[0]);
-      imu->linear_acceleration.y = -computeLinearAccelerationFromRaw(raw->y_acc, bias_raw_imu_acc_[1]);  // Refer to RAWIMUSX documentation
-      imu->linear_acceleration.z =  computeLinearAccelerationFromRaw(raw->z_acc, bias_raw_imu_acc_[2]);
+      imu.linear_acceleration.x =  computeLinearAccelerationFromRaw(raw->x_acc, bias_raw_imu_acc_[0]);
+      imu.linear_acceleration.y = -computeLinearAccelerationFromRaw(raw->y_acc, bias_raw_imu_acc_[1]);  // Refer to RAWIMUSX documentation
+      imu.linear_acceleration.z =  computeLinearAccelerationFromRaw(raw->z_acc, bias_raw_imu_acc_[2]);
 
-      imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
-      imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
-      imu->orientation_covariance[0] = DATA_NOT_AVAILABLE;
+      imu.angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
+      imu.linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
+      imu.orientation_covariance[0] = DATA_NOT_AVAILABLE;
 
-      raw_imu_pub_->publish(std::move(imu));
+      raw_imu_pub_->publish(imu);
     }
 
     std::string topic(const std::string& publisher)
@@ -506,7 +506,7 @@ namespace novatel_oem7_driver
       init_raw_calibration_ang_ = node_->declare_parameter<bool>("ins_raw_static_init_angular_calib", false);
 
       align_sub_  = node.create_subscription<HEADING2>( topic("HEADING2"),  10,
-        [&](const HEADING2::SharedPtr msg){
+        [&align_sol_ = align_sol_](const HEADING2::SharedPtr msg){
           align_sol_ = msg;
         }
       );

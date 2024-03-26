@@ -216,21 +216,22 @@ namespace novatel_oem7_driver
         {
           if (gpsfix_->status.status == GPSStatus::STATUS_NO_FIX)
             return;
-          std::unique_ptr<PointStamped> ptStamped = std::make_unique<PointStamped>();
+          PointStamped ptStamped;
           if(!UTMPointFromGnss(
-              ptStamped->point,
+              ptStamped.point,
               gpsfix_->latitude,
               gpsfix_->longitude,
               gpsfix_->altitude))
             return;
+
           gps_local_cartesian_.Reset(gpsfix_->latitude, gpsfix_->longitude, 0.0);
           odom_zero_origin_set_ = true;
 
-          odom_origin_x_ = ptStamped->point.x;
-          odom_origin_y_ = ptStamped->point.y;
-          odom_origin_z_ = ptStamped->point.z;
+          odom_origin_x_ = ptStamped.point.x;
+          odom_origin_y_ = ptStamped.point.y;
+          odom_origin_z_ = ptStamped.point.z;
 
-          Odometry_origin_pub_->publish(std::move(ptStamped));
+          Odometry_origin_pub_->publish(ptStamped);
 
           RCLCPP_INFO_STREAM(node_->get_logger(),
                     "Odometry UTM Origin:  " << odom_origin_x_ << " " << odom_origin_y_);
@@ -378,7 +379,7 @@ namespace novatel_oem7_driver
 
     }
 
-    void handleImu(const Imu::UniquePtr imu)
+    void handleImu(const Imu::SharedPtr imu)
     {
       imu_present_ = true;
 
@@ -410,7 +411,7 @@ namespace novatel_oem7_driver
 
     const MessageIdRecords& getMessageIds()
     {
-      static const MessageIdRecords MSG_IDS;
+      static const MessageIdRecords MSG_IDS({});
       return MSG_IDS;
     }
 

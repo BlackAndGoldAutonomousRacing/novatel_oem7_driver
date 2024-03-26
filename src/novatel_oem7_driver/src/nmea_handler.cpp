@@ -41,9 +41,9 @@ namespace novatel_oem7_driver
 
     void publishNMEASentence(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto nmea_sentence = std::make_unique<nmea_msgs::msg::Sentence>();
-      nmea_sentence->sentence.assign(reinterpret_cast<const char*>(msg->getMessageData(0)), msg->getMessageDataLength());
-      NMEA_pub_->publish(std::move(nmea_sentence));
+      static nmea_msgs::msg::Sentence nmea_sentence;
+      nmea_sentence.sentence.assign(reinterpret_cast<const char*>(msg->getMessageData(0)), msg->getMessageDataLength());
+      NMEA_pub_->publish(nmea_sentence);
     }
 
   public:
