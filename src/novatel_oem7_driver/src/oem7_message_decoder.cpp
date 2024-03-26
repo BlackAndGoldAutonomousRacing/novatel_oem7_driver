@@ -108,9 +108,9 @@ namespace novatel_oem7_driver
 
     //  try
     //  {
+        std::shared_ptr<novatel_oem7::Oem7RawMessageIf> msg;
         while(rclcpp::ok())
         {
-          std::shared_ptr<novatel_oem7::Oem7RawMessageIf> msg;
           if(decoder_->readMessage(msg))
           {
             if(msg)

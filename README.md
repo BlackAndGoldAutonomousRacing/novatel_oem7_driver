@@ -68,6 +68,17 @@ sudo apt install ./ros-{$ROS_DISTRO}-novatel-oem7*.deb
 ```
 
 ## Configuration Parameters
+This driver assumes `SETINSROTATION RBV 0 0 0 * * *`, `SETINSROTATION USER 0 0 0 * * *` and `SETINSTRANSLATION USER 0 0 0 * * *`. The driver is tested with a NovATel PwrPak 7D unit. The internal frames are assumed to be (w.r.t. the receiver unit enclosure):
+- RAWIMU ("imu_link" frame): X - Right, Y - Front, Z - Up. This frame is as specified by the INS origin marker on the enclosure.
+- INSPVA: X - Left, Y - Front, Z - Down. Orientation origin: Z vertically pointing down, X facing North.
+- CORRIMU: X(Longitudinal/Roll) - Left, Y(Lateral/Pitch) - Front, Z(Vertical/Yaw) - Up. This frame is left-handed.
+
+The driver outputs all processed ROS messages in the following frame standard:
+- ROS ("gps" frame): X - Forward, Y - Left, Z - Up. Orientation origin: Z vertically pointing up, X facing East.
+
+The ROS frame is equivalent to rotating RAWIMU by +90 degrees along its Z axis.
+
+Parameters:
 * **oem7_position_source**: string.
   Oem7 log used to obtain the position for GPSFix, NavSatFix, Odometry.
 
@@ -125,6 +136,7 @@ http://wiki.ros.org/novatel_oem7_driver
 ## Authors
 
 * [**NovAtel**](https://www.novatel.com), part of [**Hexagon**](https://hexagon.com)
+* Haoguang Yang, adaptation of the driver for Indy Autonomous Challenge.
 
 
 ## License

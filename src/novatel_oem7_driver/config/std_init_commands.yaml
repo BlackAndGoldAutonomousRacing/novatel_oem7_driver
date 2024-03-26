@@ -89,7 +89,6 @@ receiver_init_commands:
 - "LOG INSPVASB ONTIME 0.02"
 - "LOG INSPVAXB ONTIME 1"
 - "LOG CORRIMUSB ONTIME 0.01"
-- "LOG INSSTDEVB ONTIME 1"
 - "LOG RAWIMUSXB ONNEW"
 #----------------------------------------------------------------------------------------------------------
 

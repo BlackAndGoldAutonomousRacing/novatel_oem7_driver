@@ -39,10 +39,10 @@ namespace novatel_oem7_driver
 
     MessageIdRecords msg_id_records_;
 
-    void publishNMEASentence(Oem7RawMessageIf::ConstPtr msg)
+    void publishNMEASentence(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      std::shared_ptr<nmea_msgs::msg::Sentence> nmea_sentence(new nmea_msgs::msg::Sentence);
-      nmea_sentence->sentence.assign(reinterpret_cast<const char*>(msg->getMessageData(0)), msg->getMessageDataLength());
+      static nmea_msgs::msg::Sentence nmea_sentence;
+      nmea_sentence.sentence.assign(reinterpret_cast<const char*>(msg->getMessageData(0)), msg->getMessageDataLength());
       NMEA_pub_->publish(nmea_sentence);
     }
 
@@ -63,7 +63,7 @@ namespace novatel_oem7_driver
       return msg_id_records_;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       publishNMEASentence(msg);
     }

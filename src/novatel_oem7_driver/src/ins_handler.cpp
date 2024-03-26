@@ -38,13 +38,17 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #endif
 #include "sensor_msgs/msg/imu.hpp"
+#include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 
 #include "novatel_oem7_msgs/msg/corrimu.hpp"
+#include "novatel_oem7_msgs/msg/heading2.hpp"
 #include "novatel_oem7_msgs/msg/imuratecorrimu.hpp"
-#include "novatel_oem7_msgs/msg/insstdev.hpp"
+#include "novatel_oem7_msgs/msg/inertial_solution_status.hpp"
+#include "novatel_oem7_msgs/msg/solution_status.hpp"
 #include "novatel_oem7_msgs/msg/insconfig.hpp"
 #include "novatel_oem7_msgs/msg/inspva.hpp"
 #include "novatel_oem7_msgs/msg/inspvax.hpp"
+#include "novatel_oem7_msgs/srv/oem7_abascii_cmd.hpp"
 
 #include <oem7_ros_publisher.hpp>
 #include <driver_parameter.hpp>
@@ -52,8 +56,7 @@
 #include <math.h>
 #include <map>
 
-
-namespace novatel_oem7_driver
+namespace
 {
   /***
    * Converts degrees to Radians
@@ -65,23 +68,58 @@ namespace novatel_oem7_driver
     return degrees * M_PIf64 / 180.0;
   }
 
+  /**
+   * @brief Rotates a 3x3 covariance matrix
+   *
+   * @return rotated cov matrix in tf2::Matrix3x3 form.
+   */
+  inline tf2::Matrix3x3 rotateCovMatrix(const tf2::Transform& tf,
+                                                 const std::array<double, 9UL>& covIn)
+  {
+    tf2::Matrix3x3 covMat(covIn[0], covIn[1], covIn[2],
+                            covIn[3], covIn[4], covIn[5],
+                            covIn[6], covIn[7], covIn[8]);
+    tf2::Quaternion q = tf.getRotation().normalized();
+    if (!std::isnan(q.w())){
+      return covMat;
+    } else {
+      tf2::Matrix3x3 tfRot = tf.getBasis();
+      covMat = tfRot * covMat * (tfRot.transpose());
+    }
+    return covMat;
+  }
+
   const double DATA_NOT_AVAILABLE = -1.0; ///< Used to initialized unpopulated fields.
+
+}
+
+namespace novatel_oem7_driver
+{
+  using namespace novatel_oem7_msgs::msg;
 
   class INSHandler: public Oem7MessageHandlerIf
   {
     rclcpp::Node* node_;
 
-    std::unique_ptr<Oem7RosPublisher<sensor_msgs::msg::Imu>>                   imu_pub_;
-    std::unique_ptr<Oem7RosPublisher<sensor_msgs::msg::Imu>>                   raw_imu_pub_;
-    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::CORRIMU>>         corrimu_pub_;
-    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::INSSTDEV>>        insstdev_pub_;
-    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::INSPVAX>>         inspvax_pub_;
-    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::INSCONFIG>>       insconfig_pub_;
+    std::unique_ptr<Oem7RosPublisher<sensor_msgs::msg::Imu>>  imu_pub_;
+    std::unique_ptr<Oem7RosPublisher<sensor_msgs::msg::Imu>>  raw_imu_pub_;
+    std::unique_ptr<Oem7RosPublisher<CORRIMU>>                corrimu_pub_;
+    std::unique_ptr<Oem7RosPublisher
+            <geometry_msgs::msg::TwistWithCovarianceStamped>> ins_vel_pub_;
+    std::unique_ptr<Oem7RosPublisher<INSPVA>>                 inspva_pub_;
+    std::unique_ptr<Oem7RosPublisher<INSPVAX>>                inspvax_pub_;
+    std::unique_ptr<Oem7RosPublisher<INSCONFIG>>              insconfig_pub_;
 
+    rclcpp::Subscription<HEADING2>::SharedPtr                 align_sub_;
 
-    std::shared_ptr<novatel_oem7_msgs::msg::INSPVA>   inspva_;
-    std::shared_ptr<novatel_oem7_msgs::msg::CORRIMU>  corrimu_;
-    std::shared_ptr<novatel_oem7_msgs::msg::INSSTDEV> insstdev_;
+    rclcpp::Client<novatel_oem7_msgs::srv::Oem7AbasciiCmd>::SharedPtr oem7CmdCli_;
+
+    std::shared_ptr<HEADING2> align_sol_;
+    INSPVAX  inspvax_;
+
+    bool inspva_present_;
+    tf2::Transform enu_to_local_rotation_;
+    geometry_msgs::msg::TwistWithCovarianceStamped twist_w_cov_;
 
     oem7_imu_rate_t imu_rate_;                ///< IMU output rate
     double imu_raw_gyro_scale_factor_;        ///< IMU-specific raw gyroscope scaling
@@ -135,7 +173,7 @@ namespace novatel_oem7_driver
             [](std::vector<double> &x, std::vector<double> &y){
               std::vector<double> result;
               result.reserve(x.size());
-              std::transform(x.begin(), x.end(), y.begin(), 
+              std::transform(x.begin(), x.end(), y.begin(),
                    std::back_inserter(result), std::plus<double>());
               return result;
             }
@@ -159,17 +197,16 @@ namespace novatel_oem7_driver
     }
 
 
-    void processInsConfigMsg(Oem7RawMessageIf::ConstPtr msg)
+    void processInsConfigMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::INSCONFIG> insconfig;
+      static INSCONFIG insconfig;
       MakeROSMessage(msg, insconfig);
-      insconfig_pub_->publish(insconfig);
 
-      const oem7_imu_type_t imu_type = static_cast<oem7_imu_type_t>(insconfig->imu_type);
+      const oem7_imu_type_t imu_type = static_cast<oem7_imu_type_t>(insconfig.imu_type);
 
       std::string imu_desc;
       getImuDescription(imu_type, imu_desc);
-      
+
       if(imu_rate_ == 0) // No override; this is normal.
       {
         imu_rate_ = getImuRate(imu_type);
@@ -182,9 +219,6 @@ namespace novatel_oem7_driver
         return;
       }
 
-      // imu_raw_accel_scale_factor_ = getImuLinearScale(imu_type);
-      // imu_raw_gyro_scale_factor_ = getImuAngularScale(imu_type);
-
       if(imu_raw_gyro_scale_factor_  == 0.0 ||
          imu_raw_accel_scale_factor_ == 0.0) // No override, this is normal.
       {
@@ -193,11 +227,13 @@ namespace novatel_oem7_driver
             imu_raw_gyro_scale_factor_,
             imu_raw_accel_scale_factor_))
         {
-          RCLCPP_ERROR_STREAM(node_->get_logger(), 
-            "IMU type= '" << insconfig->imu_type << "'; Scale factors unavilable. Raw IMU output disabled");
+          RCLCPP_ERROR_STREAM(node_->get_logger(),
+            "IMU type= '" << insconfig.imu_type << "'; Scale factors unavilable. Raw IMU output disabled");
           return;
         }
       }
+
+      insconfig_pub_->publish(insconfig);
 
       RCLCPP_INFO_STREAM(node_->get_logger(),
                          "IMU: "          << imu_type  << " '"  << imu_desc << "' "
@@ -206,60 +242,143 @@ namespace novatel_oem7_driver
                       << "accel scale= "  << imu_raw_accel_scale_factor_);
     }
 
-    void publishInsPVAXMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishInsPVAMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::INSPVAX> inspvax;
-      MakeROSMessage(msg, inspvax);
-
-      inspvax_pub_->publish(inspvax);
+      static INSPVA inspva;
+      MakeROSMessage(msg, inspva);
+      updateEnuOrientation(inspva);
+      inspva_present_ = true;
+      publishInsTwistMsg(inspva);
+      inspva_pub_->publish(inspva);
     }
 
-    void publishCorrImuMsg(Oem7RawMessageIf::ConstPtr msg)
+    void publishInsPVAXMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, corrimu_);
-      corrimu_pub_->publish(corrimu_);
+      MakeROSMessage(msg, inspvax_);
+      inspvax_pub_->publish(inspvax_);
     }
 
-
-    void publishImuMsg()
+    void publishCorrImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      if(!imu_pub_->isEnabled() || !inspva_ || imu_rate_ == 0)
-        return;
+      static CORRIMU corrimu;
+      MakeROSMessage(msg, corrimu);
+      publishImuMsg(corrimu);
+      corrimu_pub_->publish(corrimu);
+    }
 
-      std::shared_ptr<sensor_msgs::msg::Imu> imu(new sensor_msgs::msg::Imu);
-
-      // Azimuth: Oem7 (North=0) to ROS (East=0), using Oem7 LH rule
+    void updateEnuOrientation(const INSPVA& inspva)
+    {
+      static double pitch = 0., azimuth = 0.;
+      // Azimuth: Oem7 (North=0) to ROS (East=0)
       static const double ZERO_DEGREES_AZIMUTH_OFFSET = 90.0;
-      double azimuth = inspva_->azimuth - ZERO_DEGREES_AZIMUTH_OFFSET;
 
-      // Conversion to quaternion addresses rollover.
-      // Pitch and azimuth are adjusted from Y-forward, LH to X-forward, RH.
-      tf2::Quaternion tf_orientation;
-      tf_orientation.setRPY(
-                         degreesToRadians(inspva_->roll),
-                        -degreesToRadians(inspva_->pitch),
-                        -degreesToRadians(azimuth)); // Oem7 LH to ROS RH rule
-
-      imu->orientation = tf2::toMsg(tf_orientation);
-
-      if(corrimu_ && corrimu_->imu_data_count > 0)
-      {
-        double instantaneous_rate_factor = imu_rate_ / corrimu_->imu_data_count;
-
-        imu->angular_velocity.x = corrimu_->roll_rate  * instantaneous_rate_factor;
-        imu->angular_velocity.y = corrimu_->pitch_rate * instantaneous_rate_factor;
-        imu->angular_velocity.z = corrimu_->yaw_rate   * instantaneous_rate_factor;
-
-        imu->linear_acceleration.x = corrimu_->longitudinal_acc * instantaneous_rate_factor;
-        imu->linear_acceleration.y = corrimu_->lateral_acc      * instantaneous_rate_factor;
-        imu->linear_acceleration.z = corrimu_->vertical_acc     * instantaneous_rate_factor;
+      if (inspva.status.status == InertialSolutionStatus::INS_SOLUTION_GOOD ||
+          inspva.status.status == InertialSolutionStatus::INS_SOLUTION_FREE ||
+          inspva.status.status == InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
+        // a converging solution, use INSPVA solution. Need to convert INSPVA frame to ROS frame
+        pitch = inspva.roll;        // INSPVA frame: left/front/down
+        azimuth = -inspva.azimuth;  // INSPVA has x: ROS East = INSPVA North = 0, z: CW positive
+        // FIXME: NEED TO DOUBLE-CHECK SETINSROTATION USER 0 0 0 1.0 1.0 1.0
+        // (i.e. use Novatel Vehicle frame)
+      } else if (align_sol_ && align_sol_->sol_status.status == SolutionStatus::SOL_COMPUTED) {
+        // INS initial alignment is incomplete. Substitute orientation with
+        // the one obtained from (post-offset) HEADING2 instead.
+        pitch = -align_sol_->pitch;                                   // ALIGN has pitch UP positive
+        azimuth = ZERO_DEGREES_AZIMUTH_OFFSET - align_sol_->heading;  // ALIGN has North=0, CW positive
+        // call initialization command service
+        // Wait for the ASCII config interface service to be activated
+        if (oem7CmdCli_->wait_for_service(std::chrono::seconds(1))) {
+          static unsigned long last_init_ins_from_heading2 = 0;
+          unsigned long init_timestamp = node_->now().nanoseconds();
+          // TODO: hard-coded: re-init no more frequently than once every two seconds
+          if (init_timestamp - last_init_ins_from_heading2 > 2000000000UL) {
+            auto request = std::make_shared<novatel_oem7_msgs::srv::Oem7AbasciiCmd::Request>();
+            request->cmd = "SETINITAZIMUTH " +
+                          std::to_string(align_sol_->heading - ZERO_DEGREES_AZIMUTH_OFFSET) + " " +
+                          std::to_string(align_sol_->heading_stdev);
+            auto result = oem7CmdCli_->async_send_request(request);
+            // Wait for the result.
+            if (rclcpp::spin_until_future_complete(node_->get_node_base_interface(), result) ==
+                rclcpp::FutureReturnCode::SUCCESS)
+              last_init_ins_from_heading2 = init_timestamp;
+          }
+        }
       }
 
-      if(insstdev_)
+      // Conversion to quaternion addresses rollover.
+      // Pitch and azimuth are adjusted from Y-forward, RH to X-forward, RH.
+      tf2::Quaternion orientation;
+      orientation.setRPY(degreesToRadians(inspva.pitch),  // roll is INSPVA pitch (INS is Y forward)
+                         degreesToRadians(pitch),
+                         degreesToRadians(azimuth));      // East=0, CCW positive
+
+      enu_to_local_rotation_.setRotation(orientation);
+    }
+
+    void publishInsTwistMsg(const INSPVA& inspva)
+    {
+      if (!imu_pub_->isEnabled() || !inspva_present_ || imu_rate_ == 0)
+        return;
+
+      auto local_to_enu_rotation = enu_to_local_rotation_.inverse();
+      // update twist with covariace stamped using inspva_ and inspvax_
+
+      tf2::Vector3 local_linear_velocity = local_to_enu_rotation(tf2::Vector3(
+                                                                inspva.east_velocity,
+                                                                inspva.north_velocity,
+                                                                inspva.up_velocity));
+      twist_w_cov_.twist.twist.linear.x = local_linear_velocity.x();
+      twist_w_cov_.twist.twist.linear.y = local_linear_velocity.y();
+      twist_w_cov_.twist.twist.linear.z = local_linear_velocity.z();
+      if(inspvax_.header.stamp.sec)
       {
-        imu->orientation_covariance[0] = std::pow(insstdev_->pitch_stdev,   2);
-        imu->orientation_covariance[4] = std::pow(insstdev_->roll_stdev,    2);
-        imu->orientation_covariance[8] = std::pow(insstdev_->azimuth_stdev, 2);
+        auto local_linear_vel_cov = rotateCovMatrix(local_to_enu_rotation,
+                                            {std::pow(inspvax_.east_velocity_stdev, 2), 0., 0.,
+                                             0., std::pow(inspvax_.north_velocity_stdev, 2), 0.,
+                                             0., 0., std::pow(inspvax_.up_velocity_stdev, 2)});
+        twist_w_cov_.twist.covariance[ 0] = local_linear_vel_cov[0][0];
+        //twist_w_cov_.twist.covariance[ 1] = local_linear_vel_cov[0][1];
+        //twist_w_cov_.twist.covariance[ 2] = local_linear_vel_cov[0][2];
+        //twist_w_cov_.twist.covariance[ 6] = local_linear_vel_cov[1][0];
+        twist_w_cov_.twist.covariance[ 7] = local_linear_vel_cov[1][1];
+        //twist_w_cov_.twist.covariance[ 8] = local_linear_vel_cov[1][2];
+        //twist_w_cov_.twist.covariance[12] = local_linear_vel_cov[2][0];
+        //twist_w_cov_.twist.covariance[13] = local_linear_vel_cov[2][1];
+        twist_w_cov_.twist.covariance[14] = local_linear_vel_cov[2][2];
+      }
+
+      ins_vel_pub_->publish(twist_w_cov_);
+    }
+
+    void publishImuMsg(const CORRIMU& corrimu)
+    {
+      if(!imu_pub_->isEnabled() || !inspva_present_ || imu_rate_ == 0)
+        return;
+
+      static sensor_msgs::msg::Imu imu;
+      imu.orientation = tf2::toMsg(enu_to_local_rotation_.getRotation());
+
+      if(corrimu.imu_data_count > 0)
+      {
+        double instantaneous_rate_factor = imu_rate_ / corrimu.imu_data_count;
+
+        // CORRIMU frame: left/front/up (left-handed). Convert to front/left/up (right-handed)
+        imu.angular_velocity.x = corrimu.pitch_rate * instantaneous_rate_factor;
+        imu.angular_velocity.y = corrimu.roll_rate  * instantaneous_rate_factor;
+        imu.angular_velocity.z = corrimu.yaw_rate   * instantaneous_rate_factor;
+
+        imu.linear_acceleration.x = corrimu.lateral_acc      * instantaneous_rate_factor;
+        imu.linear_acceleration.y = corrimu.longitudinal_acc * instantaneous_rate_factor;
+        imu.linear_acceleration.z = corrimu.vertical_acc     * instantaneous_rate_factor;
+
+        twist_w_cov_.twist.twist.angular = imu.angular_velocity;
+      }
+
+      if(inspvax_.header.stamp.sec)
+      {
+        imu.orientation_covariance[0] = std::pow(inspvax_.pitch_stdev,   2);
+        imu.orientation_covariance[4] = std::pow(inspvax_.roll_stdev,    2);
+        imu.orientation_covariance[8] = std::pow(inspvax_.azimuth_stdev, 2);
       }
 
       // TODO hard-coded for now. Should be set in the oem7_imu.cpp as product-specific values.
@@ -269,20 +388,18 @@ namespace novatel_oem7_driver
       // C 0 0
       // 0 C 0
       // 0 0 C
-      imu->angular_velocity_covariance[0] = ANGULAR_COV;
-      imu->angular_velocity_covariance[4] = ANGULAR_COV;
-      imu->angular_velocity_covariance[8] = ANGULAR_COV;
-      imu->linear_acceleration_covariance[0] = LINEAR_COV;
-      imu->linear_acceleration_covariance[4] = LINEAR_COV;
-      imu->linear_acceleration_covariance[8] = LINEAR_COV;
+      imu.angular_velocity_covariance[0] = ANGULAR_COV;
+      imu.angular_velocity_covariance[4] = ANGULAR_COV;
+      imu.angular_velocity_covariance[8] = ANGULAR_COV;
+      imu.linear_acceleration_covariance[0] = LINEAR_COV;
+      imu.linear_acceleration_covariance[4] = LINEAR_COV;
+      imu.linear_acceleration_covariance[8] = LINEAR_COV;
 
       imu_pub_->publish(imu);
-    }
 
-    void publishInsStDevMsg(Oem7RawMessageIf::ConstPtr msg)
-    {
-      MakeROSMessage(msg, insstdev_);
-      insstdev_pub_->publish(insstdev_);
+      twist_w_cov_.twist.covariance[21] = ANGULAR_COV;
+      twist_w_cov_.twist.covariance[28] = ANGULAR_COV;
+      twist_w_cov_.twist.covariance[35] = ANGULAR_COV;
     }
 
     /**
@@ -301,12 +418,12 @@ namespace novatel_oem7_driver
       return (raw_acc - bias_iu) * imu_raw_accel_scale_factor_;
     }
 
-    void processRawImuMsg(Oem7RawMessageIf::ConstPtr msg)
+    void processRawImuMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       // since RAWIMUS has reduced content without benefits in size,
       // we should always use the eXtended version (RAWIMUSX).
       const RAWIMUSXMem* raw;
-      
+
       if (init_raw_calibration_lin_ || init_raw_calibration_ang_) {
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
         doInitRawCalibration(*raw);
@@ -324,28 +441,37 @@ namespace novatel_oem7_driver
       } else {
         raw = reinterpret_cast<const RAWIMUSXMem*>(msg->getMessageData(OEM7_BINARY_MSG_SHORT_HDR_LEN));
       }
-        
-      std::shared_ptr<sensor_msgs::msg::Imu> imu = std::make_shared<sensor_msgs::msg::Imu>();
+
+      static sensor_msgs::msg::Imu imu;
       // All measurements are in sensor frame, uncorrected for gravity. There is no up, forward, left;
       // x, y, z are nominal references to enclsoure housing.
-      imu->angular_velocity.x =  computeAngularVelocityFromRaw(raw->x_gyro, bias_raw_imu_rot_[0]);
-      imu->angular_velocity.y = -computeAngularVelocityFromRaw(raw->y_gyro, bias_raw_imu_rot_[1]); // Refer to RAWIMUSX documentation
-      imu->angular_velocity.z =  computeAngularVelocityFromRaw(raw->z_gyro, bias_raw_imu_rot_[2]);
+      imu.angular_velocity.x =  computeAngularVelocityFromRaw(raw->x_gyro, bias_raw_imu_rot_[0]);
+      imu.angular_velocity.y = -computeAngularVelocityFromRaw(raw->y_gyro, bias_raw_imu_rot_[1]); // Refer to RAWIMUSX documentation
+      imu.angular_velocity.z =  computeAngularVelocityFromRaw(raw->z_gyro, bias_raw_imu_rot_[2]);
 
-      imu->linear_acceleration.x =  computeLinearAccelerationFromRaw(raw->x_acc, bias_raw_imu_acc_[0]);
-      imu->linear_acceleration.y = -computeLinearAccelerationFromRaw(raw->y_acc, bias_raw_imu_acc_[1]);  // Refer to RAWIMUSX documentation
-      imu->linear_acceleration.z =  computeLinearAccelerationFromRaw(raw->z_acc, bias_raw_imu_acc_[2]);
+      imu.linear_acceleration.x =  computeLinearAccelerationFromRaw(raw->x_acc, bias_raw_imu_acc_[0]);
+      imu.linear_acceleration.y = -computeLinearAccelerationFromRaw(raw->y_acc, bias_raw_imu_acc_[1]);  // Refer to RAWIMUSX documentation
+      imu.linear_acceleration.z =  computeLinearAccelerationFromRaw(raw->z_acc, bias_raw_imu_acc_[2]);
 
-      imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
-      imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
-      imu->orientation_covariance[0] = DATA_NOT_AVAILABLE;
+      imu.angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
+      imu.linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
+      imu.orientation_covariance[0] = DATA_NOT_AVAILABLE;
 
       raw_imu_pub_->publish(imu);
     }
 
+    std::string topic(const std::string& publisher)
+    {
+      std::string topic;
+      node_->get_parameter(publisher + ".topic", topic);
+      return std::string(node_->get_namespace()) +
+                        (node_->get_namespace() == std::string("/") ? topic : "/" + topic);
+    }
 
   public:
     INSHandler():
+      inspva_present_(false),
+      enu_to_local_rotation_(tf2::Quaternion(0.,0.,0.,1.)),
       imu_rate_(0),
       imu_raw_gyro_scale_factor_ (0.0),
       imu_raw_accel_scale_factor_(0.0)
@@ -360,12 +486,14 @@ namespace novatel_oem7_driver
     {
       node_ = &node;
 
-      imu_pub_       = std::make_unique<Oem7RosPublisher<sensor_msgs::msg::Imu>>(            "IMU",       node);
-      raw_imu_pub_   = std::make_unique<Oem7RosPublisher<sensor_msgs::msg::Imu>>(            "RAWIMU",    node);
-      corrimu_pub_   = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::CORRIMU>>(  "CORRIMU",   node);
-      insstdev_pub_  = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::INSSTDEV>>( "INSSTDEV",  node);
-      inspvax_pub_   = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::INSPVAX>>(  "INSPVAX",   node);
-      insconfig_pub_ = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::INSCONFIG>>("INSCONFIG", node);
+      imu_pub_       = std::make_unique<Oem7RosPublisher<sensor_msgs::msg::Imu>>("IMU",       node);
+      raw_imu_pub_   = std::make_unique<Oem7RosPublisher<sensor_msgs::msg::Imu>>("RAWIMU",    node);
+      corrimu_pub_   = std::make_unique<Oem7RosPublisher<CORRIMU>>(              "CORRIMU",   node);
+      ins_vel_pub_   = std::make_unique<Oem7RosPublisher
+                              <geometry_msgs::msg::TwistWithCovarianceStamped>>( "INS_Twist", node);
+      inspva_pub_    = std::make_unique<Oem7RosPublisher<INSPVA>>(               "INSPVA",    node);
+      inspvax_pub_   = std::make_unique<Oem7RosPublisher<INSPVAX>>(              "INSPVAX",   node);
+      insconfig_pub_ = std::make_unique<Oem7RosPublisher<INSCONFIG>>(            "INSCONFIG", node);
 
       DriverParameter<int> imu_rate_p("oem7_imu_rate", 0, *node_);
       imu_rate_ = imu_rate_p.value();
@@ -376,6 +504,16 @@ namespace novatel_oem7_driver
 
       init_raw_calibration_lin_ = node_->declare_parameter<bool>("ins_raw_static_init_linear_calib", false);
       init_raw_calibration_ang_ = node_->declare_parameter<bool>("ins_raw_static_init_angular_calib", false);
+
+      align_sub_  = node.create_subscription<HEADING2>( topic("HEADING2"),  10,
+        [&align_sol_ = align_sol_](const HEADING2::SharedPtr msg){
+          align_sol_ = msg;
+        }
+      );
+
+      static rmw_qos_profile_t qos = rmw_qos_profile_default;
+      qos.depth = 20;
+      oem7CmdCli_ = node_->create_client<novatel_oem7_msgs::srv::Oem7AbasciiCmd>("Oem7Cmd", qos);
     }
 
     const MessageIdRecords& getMessageIds()
@@ -387,7 +525,6 @@ namespace novatel_oem7_driver
                                         {IMURATECORRIMUS_OEM7_MSGID,     MSGFLAG_NONE},
                                         {INSPVAS_OEM7_MSGID,             MSGFLAG_NONE},
                                         {INSPVAX_OEM7_MSGID,             MSGFLAG_NONE},
-                                        {INSSTDEV_OEM7_MSGID,            MSGFLAG_NONE},
                                         {INSPVAS_OEM7_MSGID,             MSGFLAG_NONE},
                                         {INSCONFIG_OEM7_MSGID,           MSGFLAG_STATUS_OR_CONFIG},
                                       }
@@ -395,19 +532,15 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       switch(msg->getMessageId()){
         case INSPVAS_OEM7_MSGID:
-          MakeROSMessage(msg, inspva_); // Cache
-          break;
-        case INSSTDEV_OEM7_MSGID:
-          publishInsStDevMsg(msg);
+          publishInsPVAMsg(msg);
           break;
         case CORRIMUS_OEM7_MSGID:
         case IMURATECORRIMUS_OEM7_MSGID:
           publishCorrImuMsg(msg);
-          publishImuMsg();
           break;
         case INSCONFIG_OEM7_MSGID:
           processInsConfigMsg(msg);

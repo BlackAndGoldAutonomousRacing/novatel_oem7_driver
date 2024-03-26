@@ -50,7 +50,7 @@ namespace novatel_oem7_driver
     /**
      * Called when new message is available.
      */
-    virtual void onNewMessage(std::shared_ptr<const novatel_oem7::Oem7RawMessageIf>) = 0;
+    virtual void onNewMessage(const std::shared_ptr<const novatel_oem7::Oem7RawMessageIf>&) = 0;
   };
 
 
@@ -69,8 +69,8 @@ namespace novatel_oem7_driver
      * @return true on success
      */
     virtual bool initialize(
-        rclcpp::Node&            nh,    /**< [in] handle of the owner node. Parser uses it to access ROS environment. */
-        Oem7ReceiverIf*             recvr, /**< [in] Receiver interface used for data input */
+        rclcpp::Node&             nh,    /**< [in] handle of the owner node. Parser uses it to access ROS environment. */
+        Oem7ReceiverIf*           recvr, /**< [in] Receiver interface used for data input */
         Oem7MessageDecoderUserIf* user   /**< [in] Interface to receiver message callbacks */
         ) = 0;
 

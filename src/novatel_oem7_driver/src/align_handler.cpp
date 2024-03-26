@@ -45,9 +45,9 @@ namespace novatel_oem7_driver
 
 
     void publishHEADING2(
-        Oem7RawMessageIf::ConstPtr msg)
+        const Oem7RawMessageIf::ConstPtr& msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::HEADING2> heading2;
+      static novatel_oem7_msgs::msg::HEADING2 heading2;
       MakeROSMessage(msg, heading2);
       HEADING2_pub_->publish(heading2);
     }
@@ -72,7 +72,7 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       publishHEADING2(msg);
     }

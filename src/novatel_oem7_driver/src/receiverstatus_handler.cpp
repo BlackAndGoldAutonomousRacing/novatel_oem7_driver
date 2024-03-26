@@ -368,38 +368,38 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void publishRXSTATUS(Oem7RawMessageIf::ConstPtr msg)
+    void publishRXSTATUS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      std::shared_ptr<novatel_oem7_msgs::msg::RXSTATUS> rxstatus;
+      static novatel_oem7_msgs::msg::RXSTATUS rxstatus;
       MakeROSMessage(msg, rxstatus);
 
       // Populate status strings:
-      get_status_info(rxstatus->error,     RECEIVER_ERROR_STRS,  rxstatus->error_strs,     rxstatus->error_bits);
+      get_status_info(rxstatus.error,     RECEIVER_ERROR_STRS,  rxstatus.error_strs,     rxstatus.error_bits);
 
-      get_status_info(rxstatus->rxstat,    RECEIVER_STATUS_STRS, rxstatus->rxstat_strs,    rxstatus->rxstat_bits);
-      get_status_info(rxstatus->aux1_stat, AUX1_STATUS_STRS,     rxstatus->aux1_stat_strs, rxstatus->aux1_stat_bits);
-      get_status_info(rxstatus->aux2_stat, AUX2_STATUS_STRS,     rxstatus->aux2_stat_strs, rxstatus->aux2_stat_bits);
-      get_status_info(rxstatus->aux3_stat, AUX3_STATUS_STRS,     rxstatus->aux3_stat_strs, rxstatus->aux3_stat_bits);
-      get_status_info(rxstatus->aux4_stat, AUX4_STATUS_STRS,     rxstatus->aux4_stat_strs, rxstatus->aux4_stat_bits);
+      get_status_info(rxstatus.rxstat,    RECEIVER_STATUS_STRS, rxstatus.rxstat_strs,    rxstatus.rxstat_bits);
+      get_status_info(rxstatus.aux1_stat, AUX1_STATUS_STRS,     rxstatus.aux1_stat_strs, rxstatus.aux1_stat_bits);
+      get_status_info(rxstatus.aux2_stat, AUX2_STATUS_STRS,     rxstatus.aux2_stat_strs, rxstatus.aux2_stat_bits);
+      get_status_info(rxstatus.aux3_stat, AUX3_STATUS_STRS,     rxstatus.aux3_stat_strs, rxstatus.aux3_stat_bits);
+      get_status_info(rxstatus.aux4_stat, AUX4_STATUS_STRS,     rxstatus.aux4_stat_strs, rxstatus.aux4_stat_bits);
 
       RXSTATUS_pub_->publish(rxstatus);
     }
 
-    void publishTERRASTARINFO(Oem7RawMessageIf::ConstPtr msg)
+    void publishTERRASTARINFO(const Oem7RawMessageIf::ConstPtr& msg)
     {
-        std::shared_ptr<novatel_oem7_msgs::msg::TERRASTARINFO> terrastarinfo;
+        static novatel_oem7_msgs::msg::TERRASTARINFO terrastarinfo;
         MakeROSMessage(msg, terrastarinfo);
         TSTInfo_pub_->publish(terrastarinfo);
     }
 
-    void publishTERRASTARSTATUS(Oem7RawMessageIf::ConstPtr msg)
+    void publishTERRASTARSTATUS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-        std::shared_ptr<novatel_oem7_msgs::msg::TERRASTARSTATUS> terrastarstatus;
+        static novatel_oem7_msgs::msg::TERRASTARSTATUS terrastarstatus;
         MakeROSMessage(msg, terrastarstatus);
         TSTStatus_pub_->publish(terrastarstatus);
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       if(msg->getMessageId() == RXSTATUS_OEM7_MSGID)
       {

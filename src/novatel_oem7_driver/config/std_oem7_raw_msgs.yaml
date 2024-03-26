@@ -1,4 +1,7 @@
+# Oem7 messages; message names and IDs are as they appear in Oem7 manual.
+# Correctness of message ID is critical for correct operation.
 oem7_raw_msgs:
+# Standard messages - Do not remove.
 - 42    # BESTPOS
 - 99    # BESTVEL
 - 1429  # BESTGNSSPOS
@@ -18,4 +21,5 @@ oem7_raw_msgs:
 - 1945  # INSCONFIG
 - 1719  # TERRASTARINFO
 - 1720  # TERRASTARSTATUS
+# More messages may be added in order to process Oem7 'raw' messages.
 - 83    # TRACKSTAT

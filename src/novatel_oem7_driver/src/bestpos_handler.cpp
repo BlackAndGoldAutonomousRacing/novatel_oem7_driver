@@ -249,7 +249,6 @@ namespace novatel_oem7_driver
     std::unique_ptr<Oem7RosPublisher<BESTVEL>>      BESTVEL_pub_;
     std::unique_ptr<Oem7RosPublisher<BESTUTM>>      BESTUTM_pub_;
     std::unique_ptr<Oem7RosPublisher<BESTGNSSPOS>>  BESTGNSSPOS_pub_;
-    std::unique_ptr<Oem7RosPublisher<INSPVA>>       INSPVA_pub_;
     std::unique_ptr<Oem7RosPublisher<TRACKSTAT>>    TRACKSTAT_pub_;
 
     std::unique_ptr<Oem7RosPublisher<GPSFix>>       GPSFix_pub_;
@@ -257,26 +256,25 @@ namespace novatel_oem7_driver
 
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr time_offset_pub_;
 
-    std::shared_ptr<BESTPOS> bestpos_;
-    std::shared_ptr<BESTVEL> bestvel_;
-    std::shared_ptr<BESTUTM> bestutm_;
-    std::shared_ptr<BESTGNSSPOS> bestgnsspos_;
-    std::shared_ptr<PPPPOS>  ppppos_;
-    std::shared_ptr<INSPVA>  inspva_;
-    std::shared_ptr<INSPVAX> inspvax_;
-    std::shared_ptr<GPSFix>  gpsfix_;
-    std::shared_ptr<TRACKSTAT> trackstat_;
+    rclcpp::Subscription<INSPVA>::SharedPtr   inspva_sub_;
+    rclcpp::Subscription<INSPVAX>::SharedPtr  inspvax_sub_;
+
+    std::shared_ptr<BESTPOS> bestpos_ = std::make_shared<BESTPOS>();
+    std::shared_ptr<BESTVEL> bestvel_ = std::make_shared<BESTVEL>();
+    std::shared_ptr<GPSFix>  gpsfix_ = std::make_shared<GPSFix>();
 
     Oem7RawMessageIf::ConstPtr psrdop2_;
+    INSPVA::SharedPtr inspva_;
+    INSPVAX::SharedPtr inspvax_;
 
     int64_t last_bestpos_;
     int64_t last_bestvel_;
-    int64_t last_bestgnsspos_;
+    // int64_t last_bestgnsspos_;
     int64_t last_inspva_;
 
     int32_t bestpos_period_;
     int32_t bestvel_period_;
-    int32_t bestgnsspos_period_;
+    // int32_t bestgnsspos_period_;
     int32_t inspva_period_;
 
     bool position_source_BESTPOS_; //< User override: always use BESTPOS
@@ -285,11 +283,11 @@ namespace novatel_oem7_driver
     /***
      * @return true if the specified period is the shortest in all messages.
      */
-    bool isShortestPeriod(int32_t period)
+    bool isShortestPeriod(const int32_t& period) const
     {
       return period <= bestpos_period_ &&
              period <= bestvel_period_ &&
-             period <= bestgnsspos_period_ &&
+             //period <= bestgnsspos_period_ &&
              period <= inspva_period_;
     }
 
@@ -320,57 +318,52 @@ namespace novatel_oem7_driver
       last_msg_msec = cur_msg_msec;
     }
 
-    void publishBESTPOS(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, bestpos_);
+      MakeROSMessage(msg, *bestpos_);
       updatePeriod(bestpos_, last_bestpos_, bestpos_period_);
 
       BESTPOS_pub_->publish(bestpos_);
     }
 
-    void publishBESTVEL(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTVEL(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, bestvel_);
+      MakeROSMessage(msg, *bestvel_);
       updatePeriod(bestvel_, last_bestvel_, bestvel_period_);
       BESTVEL_pub_->publish(bestvel_);
     }
 
-    void publishBESTUTM(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTUTM(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, bestutm_);
-      BESTUTM_pub_->publish(bestutm_);
+      static BESTUTM bestutm;
+      MakeROSMessage(msg, bestutm);
+      BESTUTM_pub_->publish(bestutm);
     }
 
-    void publishBESTGNSSPOS(Oem7RawMessageIf::ConstPtr msg)
+    void publishBESTGNSSPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, bestgnsspos_);
-      BESTGNSSPOS_pub_->publish(bestgnsspos_);
+      static BESTGNSSPOS bestgnsspos;
+      MakeROSMessage(msg, bestgnsspos);
+      BESTGNSSPOS_pub_->publish(bestgnsspos);
     }
 
-    void publishTRACKSTAT(Oem7RawMessageIf::ConstPtr msg)
+    void publishTRACKSTAT(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, trackstat_);
-      TRACKSTAT_pub_->publish(trackstat_);
+      static TRACKSTAT trackstat;
+      MakeROSMessage(msg, trackstat);
+      TRACKSTAT_pub_->publish(trackstat);
     }
 
-    void publishPPPPOS(Oem7RawMessageIf::ConstPtr msg)
+    void publishPPPPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      MakeROSMessage(msg, ppppos_);
-      PPPPOS_pub_->publish(ppppos_);
-    }
-
-    void publishINSPVA(Oem7RawMessageIf::ConstPtr msg)
-    {
-      MakeROSMessage(msg, inspva_);
-      updatePeriod(inspva_, last_inspva_, inspva_period_);
-
-      INSPVA_pub_->publish(inspva_);
+      static PPPPOS ppppos;
+      MakeROSMessage(msg, ppppos);
+      PPPPOS_pub_->publish(ppppos);
     }
 
     void processPositionAndPublishGPSFix()
     {
       double timestamp_now = this->node_->now().nanoseconds() * 1.e-9;
-      gpsfix_.reset(new gps_msgs::msg::GPSFix);
 
       gpsfix_->status.position_source     = GPSStatus::SOURCE_NONE;
       gpsfix_->status.orientation_source  = GPSStatus::SOURCE_NONE;
@@ -380,7 +373,8 @@ namespace novatel_oem7_driver
       // BESTPOS has the highest quality values, use them by default. They may be overriden later.
       // This is deliberately not optimized for clarity.
 
-      if(bestpos_)
+      // messages have been received at least once
+      if(bestpos_->header.stamp.sec)
       {
         gpsfix_->latitude   = bestpos_->lat;
         gpsfix_->longitude  = bestpos_->lon;
@@ -408,8 +402,9 @@ namespace novatel_oem7_driver
         gpsfix_->status.position_source = GPSStatus::SOURCE_GPS;
       }
 
-      if(bestvel_)
+      if(bestvel_->header.stamp.sec)
       {
+        // FIXME: this does not get through.
         gpsfix_->track = bestvel_->trk_gnd;
         gpsfix_->speed = bestvel_->hor_speed;
         gpsfix_->climb = bestvel_->ver_speed;
@@ -423,15 +418,15 @@ namespace novatel_oem7_driver
 
         if(bestvel_->vel_type.type == novatel_oem7_msgs::msg::PositionOrVelocityType::DOPPLER_VELOCITY)
         {
-          gpsfix_->status.motion_source |= GPSStatus::SOURCE_DOPPLER;
+          gpsfix_->status.motion_source = GPSStatus::SOURCE_DOPPLER;
         }
         else
         {
-          gpsfix_->status.motion_source |= GPSStatus::SOURCE_POINTS;
+          gpsfix_->status.motion_source = GPSStatus::SOURCE_POINTS;
         }
       }
 
-      if(inspva_ )
+      if(inspva_)
       {
         // Populate INS data
         gpsfix_->pitch  = -inspva_->pitch;
@@ -439,17 +434,12 @@ namespace novatel_oem7_driver
         //gpsfix->dip: not populated.
 
         // BESTPOS/BESTVEL take INS into account
-        gpsfix_->status.position_source   |= (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
         gpsfix_->status.orientation_source = (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
-        gpsfix_->status.motion_source =      (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
 
         // Use most recent timestamp
         gpsfix_->time = MakeGpsTime_Seconds(
                           inspva_->nov_header.gps_week_number,
                           inspva_->nov_header.gps_week_milliseconds);
-
-
-
 
         // For normal installations, INSPVA messages are sent at much higher rate than BESTPOS/BESTVEL.
         // More recent INSPVAS are preferred, unless they report inferior accuracy.
@@ -458,7 +448,7 @@ namespace novatel_oem7_driver
         bool prefer_INS = position_source_INS_; // Init to override value
         if(!position_source_INS_ && !position_source_BESTPOS_) // Not overriden: determine source on-the-fly based on quality
         {
-          if(bestpos_ && inspvax_)
+          if(bestpos_->header.stamp.sec && inspvax_)
           {
             ValueRelation time_rel = GetOem7MessageTimeRelation(inspva_->nov_header, bestpos_->nov_header);
             if(time_rel == REL_GT || time_rel == REL_EQ)
@@ -497,20 +487,20 @@ namespace novatel_oem7_driver
         prev_prefer_INS = prefer_INS;
         //--------------------------------------------------------------------------------------------------------
 
-        if(!bestpos_ || prefer_INS)
+        if(!bestpos_->header.stamp.sec || prefer_INS)
         {
           gpsfix_->latitude   = inspva_->latitude;
           gpsfix_->longitude  = inspva_->longitude;
           
           // GPSFix needs MSL height; SPAN reports ellipsoidal; so it's computed.
-          if(bestpos_) {
+          if(bestpos_->header.stamp.sec) {
             gpsfix_->altitude = inspva_->height - bestpos_->undulation;
           } else if (inspvax_) {
             gpsfix_->altitude = inspva_->height - inspvax_->undulation;
           } else {
             // Abnormal condition; likely receiver misconfiguration.
             RCLCPP_ERROR_STREAM(node_->get_logger(), "No BESTPOS or INSPVAX to get undulation");
-            gpsfix_.reset();
+            *gpsfix_ = GPSFix();
             return;
           }
 
@@ -526,25 +516,31 @@ namespace novatel_oem7_driver
           }
         }
 
-        if(!bestvel_ || prefer_INS)
+        /*
+        // Considering different reference frames of the GNSS vs INS velocities,
+        // switching of velocity sources is not recommended.
+        // Ref: https://docs.novatel.com/OEM7/Content/PDFs/OEM7_SPAN_Installation_Operation_Manual.pdf, pp 80
+
+        if(!bestvel_->header.stamp.sec || prefer_INS)
         {
-           // Compute track and horizontal speed from north and east velocities
+          // Compute track and horizontal speed from north and east velocities
 
-           gpsfix_->track = radiansToDegrees(
-                               atan2(inspva_->north_velocity, inspva_->east_velocity));
-           if(gpsfix_->track < 0.0)
-           {
-             gpsfix_->track + 360.0;
-           }
+          gpsfix_->track = radiansToDegrees(
+                              atan2(inspva_->north_velocity, inspva_->east_velocity));
+          if(gpsfix_->track < 0.0)
+          {
+            gpsfix_->track + 360.0;
+          }
 
-           gpsfix_->speed = std::sqrt(std::pow(inspva_->north_velocity, 2.0) +
-                                      std::pow(inspva_->east_velocity,  2.0));
+          gpsfix_->speed = std::sqrt(std::pow(inspva_->north_velocity, 2.0) +
+                                    std::pow(inspva_->east_velocity,  2.0));
 
-           gpsfix_->climb = inspva_->up_velocity;
+          gpsfix_->climb = inspva_->up_velocity;
+          gpsfix_->status.motion_source = (GPSStatus::SOURCE_GYRO | GPSStatus::SOURCE_ACCEL);
         }
+        */
 
       } // if(inspva_)
-
 
       if(psrdop2_)
       {
@@ -560,41 +556,42 @@ namespace novatel_oem7_driver
         RCLCPP_DEBUG_STREAM(node_->get_logger(), "<PSRDOP");
       }
 
-      // publish time difference based on gpsfix_->time
-      double diff = timestamp_now - MakeGpsTime_UTC(gpsfix_->time);
-      if (std::fabs(diff) > 0.1) {
-        RCLCPP_ERROR_STREAM_THROTTLE(node_->get_logger(), *(node_->get_clock()), 500,
-           "WARNING: Time difference high! difference is: " << diff);
-      }
-
-      auto time_offset_msg = std::make_unique<std_msgs::msg::Float64>();
-      time_offset_msg->data = diff;
-      time_offset_pub_->publish(std::move(time_offset_msg));
-
       GPSFix_pub_->publish(gpsfix_);
+
+      // publish time difference based on gpsfix_->time
+      {
+        double diff = timestamp_now - MakeGpsTime_UTC(gpsfix_->time);
+        if (std::fabs(diff) > 0.1) {
+          RCLCPP_ERROR_STREAM_THROTTLE(node_->get_logger(), *(node_->get_clock()), 500,
+            "WARNING: Time difference high! difference is: " << diff);
+        }
+        static std_msgs::msg::Float64 time_offset_msg;
+        time_offset_msg.data = diff;
+        time_offset_pub_->publish(time_offset_msg);
+      }
     }
 
     void publishNavSatFix()
     {
-      if(!gpsfix_ || !bestpos_) {
+      if(!gpsfix_->header.stamp.sec || !bestpos_->header.stamp.sec) {
         // BESTPOS is needed for service status and undulation
         return;
       }
 
-      std::unique_ptr<NavSatFix> navsatfix = std::make_unique<NavSatFix>();
+      static NavSatFix navsatfix;
 
-      navsatfix->latitude    = gpsfix_->latitude;
-      navsatfix->longitude   = gpsfix_->longitude;
-      navsatfix->altitude    = gpsfix_->altitude + bestpos_->undulation;
+      navsatfix.latitude    = gpsfix_->latitude;
+      navsatfix.longitude   = gpsfix_->longitude;
+      navsatfix.altitude    = gpsfix_->altitude + bestpos_->undulation;
 
-      navsatfix->position_covariance[0]   = gpsfix_->position_covariance[0];
-      navsatfix->position_covariance[4]   = gpsfix_->position_covariance[4];
-      navsatfix->position_covariance[8]   = gpsfix_->position_covariance[8];
-      navsatfix->position_covariance_type = GpsFixCovTypeToNavSatFixCovType(gpsfix_->position_covariance_type);
+      navsatfix.position_covariance[0]   = gpsfix_->position_covariance[0];
+      navsatfix.position_covariance[4]   = gpsfix_->position_covariance[4];
+      navsatfix.position_covariance[8]   = gpsfix_->position_covariance[8];
+      navsatfix.position_covariance_type = GpsFixCovTypeToNavSatFixCovType(gpsfix_->position_covariance_type);
 
-      navsatfix->status.status  = GpsStatusToNavSatStatus(gpsfix_->status.status);
-      navsatfix->status.service = NavSatStatusService(bestpos_);
-      NavSatFix_pub_->publish(std::move(navsatfix));
+      navsatfix.status.status  = GpsStatusToNavSatStatus(gpsfix_->status.status);
+      navsatfix.status.service = NavSatStatusService(bestpos_);
+      NavSatFix_pub_->publish(navsatfix);
     }
 
 
@@ -609,7 +606,7 @@ namespace novatel_oem7_driver
      * Converts covariance form GPSFix to NavSatFix
      * @return NavSatFix covariance
      */
-    uint8_t GpsFixCovTypeToNavSatFixCovType(uint8_t covariance_type)
+    uint8_t GpsFixCovTypeToNavSatFixCovType(uint8_t covariance_type) const
     {
       switch(covariance_type)
       {
@@ -636,7 +633,7 @@ namespace novatel_oem7_driver
      *
      * @return ROS status.
      */
-    int16_t ToROSGPSStatus(const BESTPOS::SharedPtr& bestpos)
+    int16_t ToROSGPSStatus(const BESTPOS::SharedPtr& bestpos) const
     {
       // ROS does not support all necessary solution types to map Oem7 solution types correctly.
       // For consistency, OEM7 WAAS is reported as SBAS.
@@ -690,7 +687,7 @@ namespace novatel_oem7_driver
 
     /*** Generates NavSatFix object from GpsFix
      */
-    void GpsFixToNavSatFix(const GPSFix::SharedPtr& gpsfix, NavSatFix::SharedPtr& navsatfix)
+    void GpsFixToNavSatFix(const GPSFix::SharedPtr& gpsfix, NavSatFix::SharedPtr& navsatfix) const
     {
       navsatfix->latitude    = gpsfix->latitude;
       navsatfix->longitude   = gpsfix->longitude;
@@ -705,7 +702,7 @@ namespace novatel_oem7_driver
     /**
      * Generates NavSatStatus from GPSStatus::status
      */
-    uint8_t GpsStatusToNavSatStatus(int16_t gps_status)
+    uint8_t GpsStatusToNavSatStatus(const int16_t gps_status) const
     {
       // Keep this in sync with the return values of ToROSGPSStatus
       switch(gps_status)
@@ -730,6 +727,13 @@ namespace novatel_oem7_driver
       }
     }
 
+    std::string topic(const std::string& publisher) const
+    {
+      std::string topic;
+      node_->get_parameter(publisher + ".topic", topic);
+      return std::string(node_->get_namespace()) + 
+                        (node_->get_namespace() == std::string("/") ? topic : "/" + topic);
+    }
 
   public:
     BESTPOSHandler():
@@ -738,7 +742,7 @@ namespace novatel_oem7_driver
       last_inspva_(0),
       bestpos_period_(std::numeric_limits<int32_t>::max()),
       bestvel_period_(std::numeric_limits<int32_t>::max()),
-      bestgnsspos_period_(std::numeric_limits<int32_t>::max()),
+      //bestgnsspos_period_(std::numeric_limits<int32_t>::max()),
       inspva_period_( std::numeric_limits<int32_t>::max()),
       position_source_BESTPOS_(false),
       position_source_INS_(false)
@@ -758,11 +762,24 @@ namespace novatel_oem7_driver
       BESTVEL_pub_ = std::make_unique<Oem7RosPublisher<BESTVEL>>("BESTVEL",       node);
       BESTUTM_pub_ = std::make_unique<Oem7RosPublisher<BESTUTM>>("BESTUTM",       node);
       BESTGNSSPOS_pub_ = std::make_unique<Oem7RosPublisher<BESTGNSSPOS>>("BESTGNSSPOS", node);
-      INSPVA_pub_  = std::make_unique<Oem7RosPublisher<INSPVA>>(  "INSPVA",       node);
       TRACKSTAT_pub_ = std::make_unique<Oem7RosPublisher<TRACKSTAT>>("TRACKSTAT", node);
 
       GPSFix_pub_  = std::make_unique<Oem7RosPublisher<GPSFix>>(  "GPSFix",       node);
       NavSatFix_pub_ = std::make_unique<Oem7RosPublisher<NavSatFix>>("NavSatFix", node);
+
+      inspva_sub_ = node.create_subscription<INSPVA>(topic("INSPVA"), 10,
+        [&](const INSPVA::SharedPtr msg){
+          inspva_ = msg;
+          updatePeriod(inspva_, last_inspva_, inspva_period_);
+          if(isShortestPeriod(inspva_period_))
+          {
+            publishROSMessages();
+          }
+        }
+      );
+      inspvax_sub_ = node.create_subscription<INSPVAX>(topic("INSPVAX"), 10,
+        [&](const INSPVAX::SharedPtr msg){ inspvax_ = msg; }
+      );
 
       time_offset_pub_ = node.create_publisher<std_msgs::msg::Float64>("time/offset", rclcpp::SensorDataQoS());
 
@@ -802,13 +819,13 @@ namespace novatel_oem7_driver
       return MSG_IDS;
     }
 
-    void handleMsg(Oem7RawMessageIf::ConstPtr msg)
+    void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
       RCLCPP_DEBUG_STREAM(node_->get_logger(),
                         "BESTPOS < [id=" << msg->getMessageId() << "] periods (BP BV BGP PVA):" <<
                         bestpos_period_ << " " <<
                         bestvel_period_ << " " <<
-                        bestgnsspos_period_ << " " <<
+                        //bestgnsspos_period_ << " " <<
                         inspva_period_);
 
       // It is assumed all the messages are logged at reasonable rates.
@@ -849,19 +866,6 @@ namespace novatel_oem7_driver
 
         case PPPPOS_OEM7_MSGID:
           publishPPPPOS(msg);
-          break;
-
-        case INSPVAS_OEM7_MSGID:
-          publishINSPVA(msg);
-
-          if(isShortestPeriod(inspva_period_))
-          {
-            publishROSMessages();
-          }
-          break;
-
-        case INSPVAX_OEM7_MSGID:
-          MakeROSMessage<novatel_oem7_msgs::msg::INSPVAX>(msg, inspvax_);
           break;
 
         case PSRDOP2_OEM7_MSGID:

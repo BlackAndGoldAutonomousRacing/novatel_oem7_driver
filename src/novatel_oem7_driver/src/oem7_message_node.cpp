@@ -308,11 +308,10 @@ namespace novatel_oem7_driver
       }
     }
 
-    void publishOem7RawMsg(Oem7RawMessageIf::ConstPtr raw_msg)
+    void publishOem7RawMsg(const Oem7RawMessageIf::ConstPtr& raw_msg)
     {
-        novatel_oem7_msgs::msg::Oem7RawMsg::SharedPtr oem7_raw_msg = std::make_shared<novatel_oem7_msgs::msg::Oem7RawMsg>();
-        oem7_raw_msg->message_data.insert(
-                                        oem7_raw_msg->message_data.end(),
+        static novatel_oem7_msgs::msg::Oem7RawMsg oem7_raw_msg;
+        oem7_raw_msg.message_data.assign(
                                         raw_msg->getMessageData(0),
                                         raw_msg->getMessageData(raw_msg->getMessageDataLength()));
 
@@ -325,7 +324,7 @@ namespace novatel_oem7_driver
    /**
      * Called by ROS decoder with new raw messages
      */
-    void onNewMessage(Oem7RawMessageIf::ConstPtr raw_msg)
+    void onNewMessage(const Oem7RawMessageIf::ConstPtr& raw_msg)
     {
       RCLCPP_DEBUG_STREAM(get_logger(),
                            ">Raw[ID: " << raw_msg->getMessageId()         <<
@@ -525,7 +524,7 @@ namespace novatel_oem7_driver
 
  public:
 
-    Oem7MessageNode(const rclcpp::NodeOptions& options):
+    Oem7MessageNode(rclcpp::NodeOptions options):
       rclcpp::Node("Oem7Message", options),
       oem7rawmsg_pub_("Oem7RawMsg", *this),
       recvr_loader_(          "novatel_oem7_driver", "novatel_oem7_driver::Oem7ReceiverIf"),

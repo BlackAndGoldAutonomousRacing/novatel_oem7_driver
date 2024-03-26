@@ -86,7 +86,20 @@ public:
   /**
    * Publish a message on this publisher. The message is ignored when the publisher is disabled.
    */
-  void publish(std::shared_ptr<M> msg)
+  void publish(M& msg)
+  {
+    if(!isEnabled())
+    {
+      return;
+    }
+
+    msg.header.frame_id = frame_id_;
+    msg.header.stamp    = node_.now();
+
+    ros_pub_->publish(msg);
+  }
+
+  void publish(std::shared_ptr<M>& msg)
   {
     if(!isEnabled())
     {
@@ -99,7 +112,7 @@ public:
     ros_pub_->publish(*msg);
   }
 
-  void publish(std::unique_ptr<M>& msg)
+  void publish(std::unique_ptr<M> msg)
   {
     if(!isEnabled())
     {

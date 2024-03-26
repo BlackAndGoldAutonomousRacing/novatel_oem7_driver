@@ -1,8 +1,8 @@
 oem7_msg_handlers:
-    - BESTPOSHandler
-    - INSHandler
-    - ALIGNHandler
+    - ALIGNHandler      # does not depend on anything
+    - INSHandler        # depends on ALIGN
+    - BESTPOSHandler    # depends on INS
     - RXSTATUSHandler
     - TimeHandler
     - NMEAHandler
-    - OdometryHandler
+    - OdometryHandler   # depends on BESTPOS and INS

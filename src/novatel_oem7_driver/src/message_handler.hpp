@@ -63,7 +63,7 @@ namespace novatel_oem7_driver
   public:
     MessageHandler(rclcpp::Node& nh);
 
-    void handleMessage(Oem7RawMessageIf::ConstPtr raw_msg);
+    void handleMessage(const Oem7RawMessageIf::ConstPtr& raw_msg);
 
     void setMessageFilter(unsigned int filter);
   };
