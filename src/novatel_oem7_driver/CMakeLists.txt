@@ -39,6 +39,8 @@ message(STATUS "VOID_P: ${CMAKE_SIZEOF_VOID_P}")
 set(OEM7_DECODER novatel_oem7_decoder)
 #set(OEM7_DECODER_DIR ${CMAKE_BINARY_DIR}/${OEM7_DECODER}/src/${OEM7_DECODER})
 set(OEM7_DECODER_DIR ${PROJECT_SOURCE_DIR}/../${OEM7_DECODER})
+# set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 
 include(ExternalProject)
 ExternalProject_Add(${OEM7_DECODER}

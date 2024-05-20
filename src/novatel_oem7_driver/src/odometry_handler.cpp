@@ -250,9 +250,9 @@ namespace novatel_oem7_driver
         return;
       }
 
-      odometry_.pose.covariance[ 0] = gpsfix_->position_covariance[0];
-      odometry_.pose.covariance[ 7] = gpsfix_->position_covariance[4];
-      odometry_.pose.covariance[14] = gpsfix_->position_covariance[8];
+      odometry_.pose.covariance[ 0] = std::max(gpsfix_->position_covariance[0]*100, 0.03);
+      odometry_.pose.covariance[ 7] = std::max(gpsfix_->position_covariance[4]*100, 0.03);
+      odometry_.pose.covariance[14] = std::max(gpsfix_->position_covariance[8]*100, 0.03);
 
       if(imu) // Corrected is expected; no orientation in raw
       {

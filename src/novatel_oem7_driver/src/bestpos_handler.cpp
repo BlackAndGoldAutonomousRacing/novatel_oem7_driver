@@ -584,9 +584,9 @@ namespace novatel_oem7_driver
       navsatfix->longitude   = gpsfix_->longitude;
       navsatfix->altitude    = gpsfix_->altitude + bestpos_->undulation;
 
-      navsatfix->position_covariance[0]   = gpsfix_->position_covariance[0];
-      navsatfix->position_covariance[4]   = gpsfix_->position_covariance[4];
-      navsatfix->position_covariance[8]   = gpsfix_->position_covariance[8];
+      navsatfix->position_covariance[0]   = std::max(gpsfix_->position_covariance[0]*100, 0.03);
+      navsatfix->position_covariance[4]   = std::max(gpsfix_->position_covariance[4]*100, 0.03);
+      navsatfix->position_covariance[8]   = std::max(gpsfix_->position_covariance[8]*100, 0.03);
       navsatfix->position_covariance_type = GpsFixCovTypeToNavSatFixCovType(gpsfix_->position_covariance_type);
 
       navsatfix->status.status  = GpsStatusToNavSatStatus(gpsfix_->status.status);
