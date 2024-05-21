@@ -453,9 +453,15 @@ namespace novatel_oem7_driver
       imu->linear_acceleration.y = -computeLinearAccelerationFromRaw(raw->y_acc, bias_raw_imu_acc_[1]);  // Refer to RAWIMUSX documentation
       imu->linear_acceleration.z =  computeLinearAccelerationFromRaw(raw->z_acc, bias_raw_imu_acc_[2]);
 
-      imu->angular_velocity_covariance[0]    = DATA_NOT_AVAILABLE;
-      imu->linear_acceleration_covariance[0] = DATA_NOT_AVAILABLE;
-      imu->orientation_covariance[0] = DATA_NOT_AVAILABLE;
+      const double LINEAR_COV = 0.009;
+      const double ANGULAR_COV = 0.0035;
+
+      imu->angular_velocity_covariance[0] = ANGULAR_COV;
+      imu->angular_velocity_covariance[4] = ANGULAR_COV;
+      imu->angular_velocity_covariance[8] = ANGULAR_COV;
+      imu->linear_acceleration_covariance[0] = LINEAR_COV;
+      imu->linear_acceleration_covariance[4] = LINEAR_COV;
+      imu->linear_acceleration_covariance[8] = LINEAR_COV;
 
       raw_imu_pub_->publish(std::move(imu));
     }
