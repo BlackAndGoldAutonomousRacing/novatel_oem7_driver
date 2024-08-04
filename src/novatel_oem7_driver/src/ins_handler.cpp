@@ -118,6 +118,7 @@ namespace novatel_oem7_driver
     INSPVAX  inspvax_;
 
     bool inspva_present_;
+    bool ins_sol_good_ = false;
     tf2::Transform enu_to_local_rotation_;
     geometry_msgs::msg::TwistWithCovarianceStamped twist_w_cov_;
 
@@ -248,7 +249,9 @@ namespace novatel_oem7_driver
       MakeROSMessage(msg, *inspva);
       updateEnuOrientation(*inspva);
       inspva_present_ = true;
-      publishInsTwistMsg(*inspva);
+      if(ins_sol_good_) {
+        publishInsTwistMsg(*inspva);
+      }
       inspva_pub_->publish(std::move(inspva));
     }
 
@@ -275,12 +278,15 @@ namespace novatel_oem7_driver
       if (inspva.status.status == InertialSolutionStatus::INS_SOLUTION_GOOD ||
           inspva.status.status == InertialSolutionStatus::INS_SOLUTION_FREE ||
           inspva.status.status == InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
+        ins_sol_good_ = true;
         // a converging solution, use INSPVA solution. Need to convert INSPVA frame to ROS frame
         pitch = inspva.roll;        // INSPVA frame: left/front/down
         azimuth = -inspva.azimuth;  // INSPVA has x: ROS East = INSPVA North = 0, z: CW positive
         // FIXME: NEED TO DOUBLE-CHECK SETINSROTATION USER 0 0 0 1.0 1.0 1.0
         // (i.e. use Novatel Vehicle frame)
-      } else if (align_sol_ && align_sol_->sol_status.status == SolutionStatus::SOL_COMPUTED) {
+      } else {
+        ins_sol_good_ = false;
+      }/*else if (align_sol_ && align_sol_->sol_status.status == SolutionStatus::SOL_COMPUTED) {
         // INS initial alignment is incomplete. Substitute orientation with
         // the one obtained from (post-offset) HEADING2 instead.
         pitch = -align_sol_->pitch;                                   // ALIGN has pitch UP positive
@@ -303,7 +309,7 @@ namespace novatel_oem7_driver
               last_init_ins_from_heading2 = init_timestamp;
           }
         }
-      }
+      }*/
 
       // Conversion to quaternion addresses rollover.
       // Pitch and azimuth are adjusted from Y-forward, RH to X-forward, RH.
