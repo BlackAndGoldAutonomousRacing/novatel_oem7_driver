@@ -387,7 +387,7 @@ namespace novatel_oem7_driver
       {
         double stdev_scalar = 1.0;
         if(!ins_sol_good_) {
-          stdev_scalar = 10.0; // arbitrary value to indicate a poor solution
+          stdev_scalar = 1.5; // arbitrary value to indicate a poor solution
         }
         imu->orientation_covariance[0] = std::pow(inspvax_.pitch_stdev * stdev_scalar,   2);
         imu->orientation_covariance[4] = std::pow(inspvax_.roll_stdev * stdev_scalar,    2);
