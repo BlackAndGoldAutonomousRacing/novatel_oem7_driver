@@ -155,7 +155,7 @@ namespace novatel_oem7_driver
       // scaling factor (unused)
       double k = 1.0;
 
-      int zonespec = utm_zone_ == -1 ? GeographicLib::UTMUPS::zonespec::MATCH : utm_zone_;
+      int zonespec = GeographicLib::UTMUPS::zonespec::MATCH;
       int new_utm_zone = 0;
       static unsigned int num_failed_conversions = 0;
       try
