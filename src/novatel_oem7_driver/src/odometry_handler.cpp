@@ -253,24 +253,31 @@ namespace novatel_oem7_driver
       odometry_.pose.covariance[ 0] = gpsfix_->position_covariance[0];
       odometry_.pose.covariance[ 7] = gpsfix_->position_covariance[4];
       odometry_.pose.covariance[14] = gpsfix_->position_covariance[8];
+      tf2::Quaternion orientation;
+      //tf2::fromMsg(imu->orientation, orientation);
+      double track_enu = M_PI_2 - degreesToRadians(gpsfix_->track);
+      orientation.setRPY(0., 0., track_enu);
+      tf2::Transform local_tf(orientation); // Twist is rotated into local frame
+      tf2::Transform local_tf_inv = local_tf.inverse();
+
+      // orientation is from utm to base link, needs to account for meridian.
+      tf2::Quaternion meridian_rotation;
+      meridian_rotation.setRPY(0., 0., meridian_convergence_);
+      orientation = meridian_rotation * orientation;
+      odometry_.pose.pose.orientation = tf2::toMsg(orientation);
+
+      odometry_.pose.covariance[21] = std::pow(std::atan2(0.3, gpsfix_->speed), 2); 
+      odometry_.pose.covariance[28] = std::pow(std::atan2(0.3, gpsfix_->speed), 2);
+      odometry_.pose.covariance[35] = std::pow(std::atan2(0.3, gpsfix_->speed), 2);
+
+      if(gpsfix_->speed < 3.0) {
+        odometry_.pose.covariance[21] = 1000.0;
+        odometry_.pose.covariance[28] = 1000.0;
+        odometry_.pose.covariance[35] = 1000.0;
+      }
 
       if(imu) // Corrected is expected; no orientation in raw
       {
-        tf2::Quaternion orientation;
-        tf2::fromMsg(imu->orientation, orientation);
-        tf2::Transform local_tf(orientation); // Twist is rotated into local frame
-        tf2::Transform local_tf_inv = local_tf.inverse();
-
-        // orientation is from utm to base link, needs to account for meridian.
-        tf2::Quaternion meridian_rotation;
-        meridian_rotation.setRPY(0., 0., meridian_convergence_);
-        orientation = meridian_rotation * orientation;
-        odometry_.pose.pose.orientation = tf2::toMsg(orientation);
-
-        odometry_.pose.covariance[21] = imu->orientation_covariance[0];
-        odometry_.pose.covariance[28] = imu->orientation_covariance[4];
-        odometry_.pose.covariance[35] = imu->orientation_covariance[8];
-
         // angular velocity in local ENU
         tf2::Vector3 angular_velocity;
         tf2::fromMsg(imu->angular_velocity, angular_velocity);
