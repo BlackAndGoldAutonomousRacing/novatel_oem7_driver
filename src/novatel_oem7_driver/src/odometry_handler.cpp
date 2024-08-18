@@ -35,8 +35,14 @@
 
 #include "geometry_msgs/msg/point_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "tf2/LinearMath/Quaternion.h"
+
 #include "gps_msgs/msg/gps_fix.hpp"
 #include "sensor_msgs/msg/imu.hpp"
+#include "novatel_oem7_msgs/msg/heading2.hpp"
+
 
 #include <GeographicLib/LocalCartesian.hpp>
 #include <GeographicLib/UTMUPS.hpp>
@@ -67,6 +73,8 @@ using gps_msgs::msg::GPSFix;
 using gps_msgs::msg::GPSStatus;
 using geometry_msgs::msg::PointStamped;
 using nav_msgs::msg::Odometry;
+using novatel_oem7_msgs::msg::HEADING2;
+using geometry_msgs::msg::PoseWithCovarianceStamped;
 
 using tf2_ros::TransformBroadcaster;
 
@@ -116,15 +124,19 @@ namespace novatel_oem7_driver
 
     std::unique_ptr<Oem7RosPublisher<Odometry>>       Odometry_pub_;
     std::unique_ptr<Oem7RosPublisher<PointStamped>>   Odometry_origin_pub_;
+    std::unique_ptr<Oem7RosPublisher<PoseWithCovarianceStamped>>   Compass_pub_;
 
     std::unique_ptr<TransformBroadcaster> tf_bc_;
 
     Odometry odometry_;
+    PoseWithCovarianceStamped compass_;
 
     rclcpp::Subscription<GPSFix>::SharedPtr    gpsfix_sub_;
     rclcpp::Subscription<Imu>::SharedPtr       imu_sub_;
+    rclcpp::Subscription<HEADING2>::SharedPtr  heading2_sub_;
 
     GPSFix::SharedPtr   gpsfix_;
+    HEADING2::SharedPtr heading2_;
 
     int utm_zone_; // UTM Zone we are operating in. Crossing zone boundary results in position jump.
     double meridian_convergence_; // meridian convergence at the current location.
@@ -197,6 +209,30 @@ namespace novatel_oem7_driver
       gps_local_cartesian_.Forward(lat, lon, hgt, pt.x, pt.y, pt.z);
       return;
     }
+
+    void publishCompass(HEADING2 heading)
+    {
+      if (!heading2_)
+      {
+        return;
+      }
+
+      // Update the header
+      compass_.header = heading.header; // Copy the header from HEADING2
+
+      // Assign heading to the orientation in the pose
+      // Assuming heading is in radians and corresponds to the yaw (z-axis rotation)
+      tf2::Quaternion q;
+      q.setRPY(0, 0, M_PI_2-heading.heading);  // Roll and pitch are set to 0, yaw is set to heading
+      compass_.pose.pose.orientation = tf2::toMsg(q);
+
+      // Optionally set covariance values (for example, using heading_stdev)
+      compass_.pose.covariance[35] = heading.heading_stdev * heading.heading_stdev; // Set covariance for yaw (z)
+
+      // Publish the updated message
+      Compass_pub_->publish(compass_);
+    }
+
 
     void publishOdometry(sensor_msgs::msg::Imu* imu)
     {
@@ -392,16 +428,23 @@ namespace novatel_oem7_driver
       publishOdometry(imu.get());
     }
 
+    void handleHEADING2(const HEADING2::SharedPtr heading2)
+    {
+      publishCompass(*heading2);
+
+    }
+
     void initialize(rclcpp::Node& node)
     {
       node_ = &node;
 
       Odometry_pub_         = std::make_unique<Oem7RosPublisher<Odometry>>( "Odometry",       node);
+      Compass_pub_          = std::make_unique<Oem7RosPublisher<PoseWithCovarianceStamped>>("Compass",     node);
       Odometry_origin_pub_  = std::make_unique<Oem7RosPublisher<PointStamped>>( "OdometryOrigin", node);
 
       gpsfix_sub_  = node.create_subscription<GPSFix>( topic("GPSFix"),  10, std::bind(&OdometryHandler::handleGPSFix,  this, std::placeholders::_1));
       imu_sub_     = node.create_subscription<Imu>(    topic("IMU"),     10, std::bind(&OdometryHandler::handleImu,     this, std::placeholders::_1));
-
+      heading2_sub_ = node.create_subscription<HEADING2>( topic("HEADING2"), 10, std::bind(&OdometryHandler::handleHEADING2,     this, std::placeholders::_1));
       DriverParameter<bool> odom_zero_origin_p("oem7_odometry_zero_origin", false, *node_);
       odom_zero_origin_ = odom_zero_origin_p.value();
 
