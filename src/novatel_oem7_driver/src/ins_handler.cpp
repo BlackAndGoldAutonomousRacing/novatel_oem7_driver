@@ -118,6 +118,7 @@ namespace novatel_oem7_driver
     INSPVAX  inspvax_;
 
     bool inspva_present_;
+    bool ins_sol_good_ = false;
     tf2::Transform enu_to_local_rotation_;
     geometry_msgs::msg::TwistWithCovarianceStamped twist_w_cov_;
 
@@ -275,12 +276,13 @@ namespace novatel_oem7_driver
       if (inspva.status.status == InertialSolutionStatus::INS_SOLUTION_GOOD ||
           inspva.status.status == InertialSolutionStatus::INS_SOLUTION_FREE ||
           inspva.status.status == InertialSolutionStatus::INS_ALIGNMENT_COMPLETE) {
+        ins_sol_good_ = true;
         // a converging solution, use INSPVA solution. Need to convert INSPVA frame to ROS frame
-        pitch = inspva.roll;        // INSPVA frame: left/front/down
-        azimuth = -inspva.azimuth;  // INSPVA has x: ROS East = INSPVA North = 0, z: CW positive
         // FIXME: NEED TO DOUBLE-CHECK SETINSROTATION USER 0 0 0 1.0 1.0 1.0
         // (i.e. use Novatel Vehicle frame)
-      } else if (align_sol_ && align_sol_->sol_status.status == SolutionStatus::SOL_COMPUTED) {
+      } else {
+        ins_sol_good_ = false;
+      }/*else if (align_sol_ && align_sol_->sol_status.status == SolutionStatus::SOL_COMPUTED) {
         // INS initial alignment is incomplete. Substitute orientation with
         // the one obtained from (post-offset) HEADING2 instead.
         pitch = -align_sol_->pitch;                                   // ALIGN has pitch UP positive
@@ -303,7 +305,10 @@ namespace novatel_oem7_driver
               last_init_ins_from_heading2 = init_timestamp;
           }
         }
-      }
+      }*/
+
+      pitch = inspva.roll;        // INSPVA frame: left/front/down
+      azimuth = -inspva.azimuth;  // INSPVA has x: ROS East = INSPVA North = 0, z: CW positive
 
       // Conversion to quaternion addresses rollover.
       // Pitch and azimuth are adjusted from Y-forward, RH to X-forward, RH.
@@ -332,10 +337,14 @@ namespace novatel_oem7_driver
       twist_w_cov_.twist.twist.linear.z = local_linear_velocity.z();
       if(inspvax_.header.stamp.sec)
       {
+        double stdev_scalar = 1.0;
+        if(!ins_sol_good_) {
+          stdev_scalar = 10.0; // arbitrary value to indicate a poor solution
+        }
         auto local_linear_vel_cov = rotateCovMatrix(local_to_enu_rotation,
-                                            {std::pow(inspvax_.east_velocity_stdev, 2), 0., 0.,
-                                             0., std::pow(inspvax_.north_velocity_stdev, 2), 0.,
-                                             0., 0., std::pow(inspvax_.up_velocity_stdev, 2)});
+                                            {std::pow(inspvax_.east_velocity_stdev * stdev_scalar, 2), 0., 0.,
+                                             0., std::pow(inspvax_.north_velocity_stdev * stdev_scalar, 2), 0.,
+                                             0., 0., std::pow(inspvax_.up_velocity_stdev * stdev_scalar, 2)});
         twist_w_cov_.twist.covariance[ 0] = local_linear_vel_cov[0][0];
         //twist_w_cov_.twist.covariance[ 1] = local_linear_vel_cov[0][1];
         //twist_w_cov_.twist.covariance[ 2] = local_linear_vel_cov[0][2];
@@ -376,9 +385,13 @@ namespace novatel_oem7_driver
 
       if(inspvax_.header.stamp.sec)
       {
-        imu.orientation_covariance[0] = std::pow(inspvax_.pitch_stdev,   2);
-        imu.orientation_covariance[4] = std::pow(inspvax_.roll_stdev,    2);
-        imu.orientation_covariance[8] = std::pow(inspvax_.azimuth_stdev, 2);
+        double stdev_scalar = 1.0;
+        if(!ins_sol_good_) {
+          stdev_scalar = 1.5; // arbitrary value to indicate a poor solution
+        }
+        imu->orientation_covariance[0] = std::pow(inspvax_.pitch_stdev * stdev_scalar,   2);
+        imu->orientation_covariance[4] = std::pow(inspvax_.roll_stdev * stdev_scalar,    2);
+        imu->orientation_covariance[8] = std::pow(inspvax_.azimuth_stdev * stdev_scalar, 2);
       }
 
       // TODO hard-coded for now. Should be set in the oem7_imu.cpp as product-specific values.

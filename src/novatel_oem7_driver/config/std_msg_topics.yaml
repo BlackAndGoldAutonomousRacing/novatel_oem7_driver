@@ -24,3 +24,4 @@ INSCONFIG:        {topic: insconfig,        frame_id: gps,  queue_size: 10}
 RXSTATUS:         {topic: rxstatus,         frame_id: gps,  queue_size: 10}
 TIME:             {topic: time,             frame_id: gps}
 TRACKSTAT:        {topic: trackstat,        frame_id: gps}
+Compass:          {topic: compass,          frame_id: gps}
