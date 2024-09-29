@@ -337,9 +337,9 @@ namespace novatel_oem7_driver
 
     void publishBESTUTM(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto bestutm = std::make_unique<BESTUTM>();
-      MakeROSMessage(msg, *bestutm);
-      BESTUTM_pub_->publish(std::move(bestutm));
+      static BESTUTM bestutm;
+      MakeROSMessage(msg, bestutm);
+      BESTUTM_pub_->publish(bestutm);
     }
 
     void publishBESTGNSSPOS(const Oem7RawMessageIf::ConstPtr& msg)
@@ -351,16 +351,16 @@ namespace novatel_oem7_driver
 
     void publishTRACKSTAT(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto trackstat = std::make_unique<TRACKSTAT>();
-      MakeROSMessage(msg, *trackstat);
-      TRACKSTAT_pub_->publish(std::move(trackstat));
+      static TRACKSTAT trackstat;
+      MakeROSMessage(msg, trackstat);
+      TRACKSTAT_pub_->publish(trackstat);
     }
 
     void publishPPPPOS(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      auto ppppos = std::make_unique<PPPPOS>();
-      MakeROSMessage(msg, *ppppos);
-      PPPPOS_pub_->publish(std::move(ppppos));
+      static PPPPOS ppppos;
+      MakeROSMessage(msg, ppppos);
+      PPPPOS_pub_->publish(ppppos);
     }
 
     void processPositionAndPublishGPSFix()
@@ -558,18 +558,19 @@ namespace novatel_oem7_driver
         RCLCPP_DEBUG_STREAM(node_->get_logger(), "<PSRDOP");
       }
 
-      // publish time difference based on gpsfix_->time
-      double diff = timestamp_now - MakeGpsTime_UTC(gpsfix_->time);
-      if (std::fabs(diff) > 0.1) {
-        RCLCPP_ERROR_STREAM_THROTTLE(node_->get_logger(), *(node_->get_clock()), 500,
-           "WARNING: Time difference high! difference is: " << diff);
-      }
-
-      auto time_offset_msg = std::make_unique<std_msgs::msg::Float64>();
-      time_offset_msg->data = diff;
-      time_offset_pub_->publish(std::move(time_offset_msg));
-
       GPSFix_pub_->publish(gpsfix_);
+
+      // publish time difference based on gpsfix_->time
+      {
+        double diff = timestamp_now - MakeGpsTime_UTC(gpsfix_->time);
+        if (std::fabs(diff) > 0.1) {
+          RCLCPP_ERROR_STREAM_THROTTLE(node_->get_logger(), *(node_->get_clock()), 500,
+            "WARNING: Time difference high! difference is: " << diff);
+        }
+        static std_msgs::msg::Float64 time_offset_msg;
+        time_offset_msg.data = diff;
+        time_offset_pub_->publish(time_offset_msg);
+      }
     }
 
     void publishNavSatFix()
@@ -579,20 +580,20 @@ namespace novatel_oem7_driver
         return;
       }
 
-      std::unique_ptr<NavSatFix> navsatfix = std::make_unique<NavSatFix>();
+      static NavSatFix navsatfix;
 
       navsatfix->latitude    = gpsfix_->latitude;
       navsatfix->longitude   = gpsfix_->longitude;
       navsatfix->altitude    = gpsfix_->altitude + bestgnsspos_->undulation;
 
-      navsatfix->position_covariance[0]   = gpsfix_->position_covariance[0];
-      navsatfix->position_covariance[4]   = gpsfix_->position_covariance[4];
-      navsatfix->position_covariance[8]   = gpsfix_->position_covariance[8];
-      navsatfix->position_covariance_type = GpsFixCovTypeToNavSatFixCovType(gpsfix_->position_covariance_type);
+      navsatfix.position_covariance[0]   = gpsfix_->position_covariance[0];
+      navsatfix.position_covariance[4]   = gpsfix_->position_covariance[4];
+      navsatfix.position_covariance[8]   = gpsfix_->position_covariance[8];
+      navsatfix.position_covariance_type = GpsFixCovTypeToNavSatFixCovType(gpsfix_->position_covariance_type);
 
-      navsatfix->status.status  = GpsStatusToNavSatStatus(gpsfix_->status.status);
-      navsatfix->status.service = NavSatStatusService(bestpos_);
-      NavSatFix_pub_->publish(std::move(navsatfix));
+      navsatfix.status.status  = GpsStatusToNavSatStatus(gpsfix_->status.status);
+      navsatfix.status.service = NavSatStatusService(bestpos_);
+      NavSatFix_pub_->publish(navsatfix);
     }
 
 

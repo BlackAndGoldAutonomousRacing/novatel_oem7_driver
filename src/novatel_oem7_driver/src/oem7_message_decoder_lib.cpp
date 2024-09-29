@@ -164,10 +164,10 @@ public:
   {
     BaseMessageData* raw_bmd = NULL;
     StreamReadStatus status = framer_->ReadMessage(&raw_bmd);
-    if(raw_bmd)
-    {
+    if(!raw_bmd)
+      msg.reset();
+    else
       msg = std::make_shared<Oem7RawMessage>(raw_bmd);
-    }
   
     // EOS: No more data is available from EDIE, e.g. EOF reached when reading from file, socket connection broken, etc.
     return !status.bEOS;
