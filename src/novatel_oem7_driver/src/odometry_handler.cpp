@@ -212,22 +212,19 @@ namespace novatel_oem7_driver
 
     void publishCompass(HEADING2 heading)
     {
-      if (!heading2_)
-      {
-        return;
-      }
 
       // Update the header
       compass_.header = heading.header; // Copy the header from HEADING2
-
+      double yaw = M_PI_2 - heading.heading * M_PI / 180.0;
+      double yaw_stdev = heading.heading_stdev * M_PI / 180.0;
       // Assign heading to the orientation in the pose
       // Assuming heading is in radians and corresponds to the yaw (z-axis rotation)
       tf2::Quaternion q;
-      q.setRPY(0, 0, M_PI_2-heading.heading);  // Roll and pitch are set to 0, yaw is set to heading
+      q.setRPY(0, 0, yaw);  // Roll and pitch are set to 0, yaw is set to heading
       compass_.pose.pose.orientation = tf2::toMsg(q);
 
       // Optionally set covariance values (for example, using heading_stdev)
-      compass_.pose.covariance[35] = heading.heading_stdev * heading.heading_stdev; // Set covariance for yaw (z)
+      compass_.pose.covariance[35] = yaw_stdev * yaw_stdev; // Set covariance for yaw (z)
 
       // Publish the updated message
       Compass_pub_->publish(compass_);
