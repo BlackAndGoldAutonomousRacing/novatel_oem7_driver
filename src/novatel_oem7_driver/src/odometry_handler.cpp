@@ -124,12 +124,12 @@ namespace novatel_oem7_driver
 
     std::unique_ptr<Oem7RosPublisher<Odometry>>       Odometry_pub_;
     std::unique_ptr<Oem7RosPublisher<PointStamped>>   Odometry_origin_pub_;
-    std::unique_ptr<Oem7RosPublisher<PoseWithCovarianceStamped>>   Compass_pub_;
+    std::unique_ptr<Oem7RosPublisher<Imu>>   Compass_pub_;
 
     std::unique_ptr<TransformBroadcaster> tf_bc_;
 
     Odometry odometry_;
-    PoseWithCovarianceStamped compass_;
+    Imu compass_;
 
     rclcpp::Subscription<GPSFix>::SharedPtr    gpsfix_sub_;
     rclcpp::Subscription<Imu>::SharedPtr       imu_sub_;
@@ -221,11 +221,9 @@ namespace novatel_oem7_driver
       // Assuming heading is in radians and corresponds to the yaw (z-axis rotation)
       tf2::Quaternion q;
       q.setRPY(0, 0, yaw);  // Roll and pitch are set to 0, yaw is set to heading
-      compass_.pose.pose.orientation = tf2::toMsg(q);
-
+      compass_.orientation = tf2::toMsg(q);
       // Optionally set covariance values (for example, using heading_stdev)
-      compass_.pose.covariance[35] = yaw_stdev * yaw_stdev; // Set covariance for yaw (z)
-
+      compass_.orientation_covariance[8] = yaw_stdev * yaw_stdev;
       // Publish the updated message
       Compass_pub_->publish(compass_);
     }
@@ -436,7 +434,7 @@ namespace novatel_oem7_driver
       node_ = &node;
 
       Odometry_pub_         = std::make_unique<Oem7RosPublisher<Odometry>>( "Odometry",       node);
-      Compass_pub_          = std::make_unique<Oem7RosPublisher<PoseWithCovarianceStamped>>("Compass",     node);
+      Compass_pub_          = std::make_unique<Oem7RosPublisher<Imu>>("Compass",     node);
       Odometry_origin_pub_  = std::make_unique<Oem7RosPublisher<PointStamped>>( "OdometryOrigin", node);
 
       gpsfix_sub_  = node.create_subscription<GPSFix>( topic("GPSFix"),  10, std::bind(&OdometryHandler::handleGPSFix,  this, std::placeholders::_1));
