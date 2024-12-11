@@ -216,7 +216,7 @@ namespace novatel_oem7_driver
       // Update the header
       compass_.header = heading.header; // Copy the header from HEADING2
       double yaw = M_PI_2 - heading.heading * M_PI / 180.0;
-      double yaw_stdev = heading.heading_stdev * M_PI / 180.0;
+      double yaw_stdev = 100.0 * heading.heading_stdev * M_PI / 180.0;
       // Assign heading to the orientation in the pose
       // Assuming heading is in radians and corresponds to the yaw (z-axis rotation)
       tf2::Quaternion q;
