@@ -291,9 +291,9 @@ namespace novatel_oem7_driver
       tf2::Transform local_tf(orientation); // Twist is rotated into local frame
       tf2::Transform local_tf_inv = local_tf.inverse();
 
-      // orientation is from utm to base link, needs to account for meridian.
+      // orientation is in local ENU form track heading, but odom is in UTM, so we need to rotate it
       tf2::Quaternion meridian_rotation;
-      meridian_rotation.setRPY(0., 0., -meridian_convergence_);
+      meridian_rotation.setRPY(0., 0., -meridian_convergence_); 
       orientation = meridian_rotation * orientation;
       odometry_.pose.pose.orientation = tf2::toMsg(orientation);
 
