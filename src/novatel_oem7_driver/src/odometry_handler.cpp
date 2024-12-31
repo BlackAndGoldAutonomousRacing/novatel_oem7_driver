@@ -292,9 +292,9 @@ namespace novatel_oem7_driver
       tf2::Transform local_tf_inv = local_tf.inverse();
 
       // orientation is from utm to base link, needs to account for meridian.
-      //tf2::Quaternion meridian_rotation;
-      //meridian_rotation.setRPY(0., 0., meridian_convergence_);
-      //orientation = meridian_rotation * orientation;
+      tf2::Quaternion meridian_rotation;
+      meridian_rotation.setRPY(0., 0., -meridian_convergence_);
+      orientation = meridian_rotation * orientation;
       odometry_.pose.pose.orientation = tf2::toMsg(orientation);
 
       odometry_.pose.covariance[21] = std::pow(std::atan2(0.3, gpsfix_->speed), 2); 
