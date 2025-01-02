@@ -331,12 +331,22 @@ namespace novatel_oem7_driver
         // Linear velocity in local ENU
         // N.B. gpsfix_->track is in NED and in degrees
         double track_ground_rad = degreesToRadians(gpsfix_->track);
-        double sin_trk = std::sin(track_ground_rad);
-        double cos_trk = std::cos(track_ground_rad);
+        // double sin_trk = std::sin(track_ground_rad);
+        // double cos_trk = std::cos(track_ground_rad);
+        // this is corrected yaw in UTM
+        double roll_temp, pitch_temp, yaw_temp;
+        tf2::Matrix3x3(orientation).getRPY(roll_temp, pitch_temp, yaw_temp); 
+        double sin_yaw = std::sin(yaw_temp);
+        double cos_yaw = std::cos(yaw_temp);
+        // using corrected yaw in UTM to get local linear velocity
         tf2::Vector3 local_linear_velocity = local_tf_inv(tf2::Vector3(
-                                                                  gpsfix_->speed * sin_trk,
-                                                                  gpsfix_->speed * cos_trk,
-                                                                  gpsfix_->climb));
+                                                              gpsfix_->speed * sin_yaw,
+                                                              gpsfix_->speed * cos_yaw,
+                                                              gpsfix_->climb));
+        // tf2::Vector3 local_linear_velocity = local_tf_inv(tf2::Vector3(
+        //                                                           gpsfix_->speed * sin_trk,
+        //                                                           gpsfix_->speed * cos_trk,
+        //                                                           gpsfix_->climb));
         odometry_.twist.twist.linear.x = local_linear_velocity.x();
         odometry_.twist.twist.linear.y = local_linear_velocity.y();
         odometry_.twist.twist.linear.z = local_linear_velocity.z();
