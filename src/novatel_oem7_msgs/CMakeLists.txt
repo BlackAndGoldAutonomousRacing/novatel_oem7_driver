@@ -16,6 +16,7 @@ set(MSG_FILES
   srv/Oem7AbasciiCmd.srv
   msg/Oem7RawMsg.msg
   msg/Oem7Header.msg
+  msg/ALIGNBSLNENU.msg
   msg/BESTPOS.msg
   msg/BESTUTM.msg
   msg/BESTVEL.msg

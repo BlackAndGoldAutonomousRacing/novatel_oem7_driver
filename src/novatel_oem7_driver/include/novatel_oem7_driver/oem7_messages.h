@@ -344,6 +344,30 @@ namespace novatel_oem7_driver
   static_assert(sizeof(INSPVAXMem) == 126, ASSERT_MSG);
 
   struct __attribute__((packed))
+  ALIGNBSLNENUMem
+  {
+    oem7_enum_t        sol_status;
+    oem7_enum_t        pos_type;
+    double             east;
+    double             north;
+    double             up;
+    float              east_stdev;
+    float              north_stdev;
+    float              up_stdev;
+    oem7_char_t        rover_stn_id[4];
+    oem7_char_t        master_stn_id[4];
+    uint8_t            num_sv_tracked;
+    uint8_t            num_sv_in_sol;
+    uint8_t            num_sv_obs;
+    uint8_t            num_sv_multi;
+    uint8_t            reserved;
+    uint8_t            ext_sol_status;
+    uint8_t            galileo_beidou_sig_mask;
+    uint8_t            gps_glonass_sig_mask;
+  };
+  static_assert(sizeof(ALIGNBSLNENUMem) == 60, ASSERT_MSG);
+
+  struct __attribute__((packed))
   HEADING2Mem
   {
     oem7_enum_t        sol_status;
