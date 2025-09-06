@@ -33,6 +33,7 @@
 #include "novatel_oem7_driver/oem7_message_util.hpp"
 
 
+#include <novatel_oem7_msgs/msg/alignbslnenu.hpp>
 #include "novatel_oem7_msgs/msg/heading2.hpp"
 #include "novatel_oem7_msgs/msg/bestpos.hpp"
 #include "novatel_oem7_msgs/msg/bestvel.hpp"
@@ -119,6 +120,40 @@ MakeROSMessage<novatel_oem7_msgs::msg::HEADING2>(
 
   static const std::string name = "HEADING2";
   SetOem7Header(msg, name, heading2.nov_header);
+}
+
+template<>
+void
+MakeROSMessage<novatel_oem7_msgs::msg::ALIGNBSLNENU>(
+    const Oem7RawMessageIf::ConstPtr& msg,
+    novatel_oem7_msgs::msg::ALIGNBSLNENU& alignbslnenu)
+{
+  assert(msg->getMessageId() == ALIGNBSLNENU_OEM7_MSGID);
+
+  const ALIGNBSLNENUMem* mem = reinterpret_cast<const ALIGNBSLNENUMem*>(msg->getMessageData(OEM7_BINARY_MSG_HDR_LEN));
+
+  alignbslnenu.sol_status.status     = mem->sol_status;
+  alignbslnenu.pos_type.type         = mem->pos_type;
+  alignbslnenu.east                  = mem->east;
+  alignbslnenu.north                 = mem->north;
+  alignbslnenu.up                    = mem->up;
+  alignbslnenu.east_stdev            = mem->east_stdev;
+  alignbslnenu.north_stdev           = mem->north_stdev;
+  alignbslnenu.up_stdev              = mem->up_stdev;
+  std::copy(std::begin(mem->rover_stn_id),  std::end(mem->rover_stn_id),  std::begin(alignbslnenu.rover_stn_id));
+  std::copy(std::begin(mem->master_stn_id), std::end(mem->master_stn_id), std::begin(alignbslnenu.master_stn_id));
+  alignbslnenu.num_sv_tracked          = mem->num_sv_tracked;
+  alignbslnenu.num_sv_in_sol           = mem->num_sv_in_sol;
+  alignbslnenu.num_sv_obs              = mem->num_sv_obs;
+  alignbslnenu.num_sv_multi            = mem->num_sv_multi;
+  alignbslnenu.reserved              = mem->reserved;
+  alignbslnenu.ext_sol_status.status   = mem->ext_sol_status;
+  alignbslnenu.galileo_beidou_sig_mask = mem->galileo_beidou_sig_mask;
+  alignbslnenu.gps_glonass_sig_mask    = mem->gps_glonass_sig_mask;
+
+  static const std::string name = "ALIGNBSLNENU";
+  SetOem7Header(msg, name, alignbslnenu.nov_header);
+
 }
 
 template<>

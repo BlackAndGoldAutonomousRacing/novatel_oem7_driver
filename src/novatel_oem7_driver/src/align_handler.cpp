@@ -29,6 +29,7 @@
 
 #include <novatel_oem7_driver/oem7_ros_messages.hpp>
 #include <novatel_oem7_msgs/msg/heading2.hpp>
+#include <novatel_oem7_msgs/msg/alignbslnenu.hpp>
 
 #include <oem7_ros_publisher.hpp>
 
@@ -42,6 +43,7 @@ namespace novatel_oem7_driver
   class ALIGNHandler: public Oem7MessageHandlerIf
   {
     std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::HEADING2>> HEADING2_pub_; ///< Publisher for NMEA sentences;
+    std::unique_ptr<Oem7RosPublisher<novatel_oem7_msgs::msg::ALIGNBSLNENU>> ALIGNBSLNENU_pub_;
 
 
     void publishHEADING2(
@@ -50,6 +52,14 @@ namespace novatel_oem7_driver
       auto heading2 = std::make_unique<novatel_oem7_msgs::msg::HEADING2>();
       MakeROSMessage(msg, *heading2);
       HEADING2_pub_->publish(std::move(heading2));
+    }
+
+    void publishALIGNBSLNENU(
+        const Oem7RawMessageIf::ConstPtr& msg)
+    {
+      auto alignbslnenu = std::make_unique<novatel_oem7_msgs::msg::ALIGNBSLNENU>();
+      MakeROSMessage(msg, *alignbslnenu);
+      ALIGNBSLNENU_pub_->publish(std::move(alignbslnenu));
     }
 
   public:
@@ -64,17 +74,28 @@ namespace novatel_oem7_driver
     void initialize(rclcpp::Node& node)
     {
       HEADING2_pub_ = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::HEADING2>>("HEADING2", node);
+      ALIGNBSLNENU_pub_ = std::make_unique<Oem7RosPublisher<novatel_oem7_msgs::msg::ALIGNBSLNENU>>("ALIGNBSLNENU", node);
     }
 
     const MessageIdRecords& getMessageIds()
     {
-      static const MessageIdRecords MSG_IDS({{HEADING2_OEM7_MSGID, MSGFLAG_NONE}});
+      static const MessageIdRecords MSG_IDS({{HEADING2_OEM7_MSGID, MSGFLAG_NONE},
+                                             {ALIGNBSLNENU_OEM7_MSGID, MSGFLAG_NONE}});
       return MSG_IDS;
     }
 
     void handleMsg(const Oem7RawMessageIf::ConstPtr& msg)
     {
-      publishHEADING2(msg);
+      switch (msg->getMessageId()){
+        case HEADING2_OEM7_MSGID:
+          publishHEADING2(msg);
+          break;
+        case ALIGNBSLNENU_OEM7_MSGID:
+          publishALIGNBSLNENU(msg);
+          break;
+        default:
+          break;
+      }
     }
   };
 }

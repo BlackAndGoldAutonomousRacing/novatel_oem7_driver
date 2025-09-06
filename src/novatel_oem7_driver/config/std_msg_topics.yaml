@@ -20,6 +20,7 @@ TERRASTARSTATUS:  {topic: terrastarstatus,  frame_id: gps}
 TERRASTARINFO:    {topic: terrastarinfo,    frame_id: gps}
 CORRIMU:          {topic: corrimu,          frame_id: gps}
 HEADING2:         {topic: heading2,         frame_id: gps}
+ALIGNBSLNENU:     {topic: alignbslnenu,     frame_id: gps}
 INSPVA:           {topic: inspva,           frame_id: gps}
 INSPVAX:          {topic: inspvax,          frame_id: gps,  queue_size: 10}
 INSCONFIG:        {topic: insconfig,        frame_id: gps,  queue_size: 10}

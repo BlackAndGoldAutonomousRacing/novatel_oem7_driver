@@ -25,3 +25,4 @@ oem7_raw_msgs:
 - 1720  # TERRASTARSTATUS
 # More messages may be added in order to process Oem7 'raw' messages.
 - 83    # TRACKSTAT
+- 1315  # ALIGNBSLNENU
